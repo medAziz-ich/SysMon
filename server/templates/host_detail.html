@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SysMon · Host Detail</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&display=swap');
+
+:root {
+  --bg:        #060b0f;
+  --surface:   #0b1219;
+  --surface2:  #101820;
+  --border:    #182230;
+  --accent:    #00e5ff;
+  --accent2:   #ff3e6c;
+  --accent3:   #a3ff57;
+  --warn:      #ffb830;
+  --text:      #c8d8e8;
+  --dim:       #3d5568;
+  --online:    #a3ff57;
+  --offline:   #ff3e6c;
+  --mono:      'Share Tech Mono', monospace;
+  --ui:        'Syne', sans-serif;
+  --ai:        #b388ff;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--ui); min-height: 100vh; }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,229,255,.015) 3px, rgba(0,229,255,.015) 4px);
+  pointer-events: none; z-index: 9999;
+}
+
+header {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 28px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, #0a1520, var(--bg));
+  position: sticky; top: 0; z-index: 100;
+}
+.back-btn { font-family: var(--mono); font-size: .72rem; color: var(--dim); text-decoration: none; letter-spacing: .1em; transition: color .15s; padding: 4px 10px; border: 1px solid var(--border); }
+.back-btn:hover { color: var(--accent); border-color: var(--accent); }
+.host-title { font-size: 1.1rem; font-weight: 800; letter-spacing: .08em; color: var(--accent); }
+.host-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.host-dot.online  { background: var(--online); box-shadow: 0 0 8px var(--online); }
+.host-dot.offline { background: var(--offline); }
+.header-meta { font-family: var(--mono); font-size: .72rem; color: var(--dim); }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+#clock { font-family: var(--mono); font-size: .75rem; color: var(--dim); }
+.settings-link { font-family: var(--mono); font-size: .72rem; color: var(--dim); text-decoration: none; letter-spacing: .1em; transition: color .15s; }
+.settings-link:hover { color: var(--accent); }
+
+.tabs-nav { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 28px; overflow-x: auto; }
+.tab-btn { padding: 11px 22px; font-family: var(--mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--dim); transition: all .15s; white-space: nowrap; }
+.tab-btn:hover  { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tab-content { display: none; padding: 24px 28px; }
+.tab-content.active { display: block; }
+
+.stat-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); padding: 16px 20px; position: relative; overflow: hidden; }
+.stat-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.stat-card.cpu::after   { background: var(--accent); }
+.stat-card.ram::after   { background: var(--accent2); }
+.stat-card.disk::after  { background: var(--accent3); }
+.stat-card.net::after   { background: var(--warn); }
+.stat-label { font-size: .62rem; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+.stat-value { font-size: 2rem; font-weight: 800; line-height: 1; }
+.stat-card.cpu  .stat-value { color: var(--accent); }
+.stat-card.ram  .stat-value { color: var(--accent2); }
+.stat-card.disk .stat-value { color: var(--accent3); }
+.stat-card.net  .stat-value { color: var(--warn); font-size: 1.2rem; }
+.stat-sub { font-family: var(--mono); font-size: .68rem; color: var(--dim); margin-top: 4px; }
+
+.panel { background: var(--surface); border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; }
+.panel-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.panel-hdr-bar { width: 3px; height: 14px; flex-shrink: 0; }
+.panel-title { font-size: .65rem; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); }
+.panel-badge { font-family: var(--mono); font-size: .65rem; color: var(--accent2); margin-left: auto; }
+
+.chart-wrap { height: 200px; position: relative; }
+.charts-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.chart-full .chart-wrap { height: 240px; }
+
+.range-pills { display: flex; gap: 4px; margin-bottom: 14px; }
+.range-pill { padding: 4px 12px; font-family: var(--mono); font-size: .65rem; letter-spacing: .1em; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--dim); transition: all .15s; }
+.range-pill:hover  { border-color: var(--accent); color: var(--accent); }
+.range-pill.active { background: rgba(0,229,255,.1); border-color: var(--accent); color: var(--accent); }
+
+.services-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.svc-pill { display: flex; align-items: center; gap: 8px; padding: 7px 16px; border: 1px solid var(--border); font-family: var(--mono); font-size: .78rem; background: rgba(255,255,255,.02); }
+.svc-dot { width: 7px; height: 7px; border-radius: 50%; }
+.svc-pill.active   .svc-dot { background: var(--online);  box-shadow: 0 0 5px var(--online); }
+.svc-pill.inactive .svc-dot { background: var(--offline); }
+.svc-pill.unknown  .svc-dot { background: var(--dim); }
+.svc-pill.active   { border-color: rgba(163,255,87,.2); }
+.svc-pill.inactive { border-color: rgba(255,62,108,.2); }
+.svc-status { color: var(--dim); font-size: .7rem; }
+
+.disk-list { display: flex; flex-direction: column; gap: 12px; }
+.disk-hdr  { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .75rem; color: var(--dim); margin-bottom: 4px; }
+.disk-track { height: 6px; background: var(--border); border-radius: 1px; overflow: hidden; }
+.disk-fill  { height: 100%; border-radius: 1px; transition: width .5s; }
+.disk-fill.ok     { background: var(--accent3); }
+.disk-fill.warn   { background: var(--warn); }
+.disk-fill.danger { background: var(--accent2); }
+
+.alert-filters { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+.filter-btn { padding: 3px 12px; font-family: var(--mono); font-size: .65rem; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--dim); transition: all .15s; }
+.filter-btn:hover  { border-color: var(--accent); color: var(--accent); }
+.filter-btn.active { background: rgba(0,229,255,.1); border-color: var(--accent); color: var(--accent); }
+
+.alert-table-wrap { max-height: 360px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: .74rem; }
+thead th { text-align: left; padding: 6px 10px 10px; color: var(--dim); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+tbody tr { border-bottom: 1px solid rgba(24,34,48,.7); transition: background .1s; cursor: pointer; }
+tbody tr:hover { background: rgba(0,229,255,.025); }
+tbody tr.selected { background: rgba(179,136,255,.06); border-left: 2px solid var(--ai); }
+tbody td { padding: 7px 10px; vertical-align: middle; }
+.td-sev, .td-status { white-space: nowrap; }
+
+.sev-badge, .stat-badge { padding: 2px 8px; font-size: .6rem; letter-spacing: .08em; text-transform: uppercase; border: 1px solid; border-radius: 2px; }
+.sev-badge.critical { color: #ff3e6c; border-color: rgba(255,62,108,.5); background: rgba(255,62,108,.1); }
+.sev-badge.warning  { color: #ffb830; border-color: rgba(255,184,48,.5); background: rgba(255,184,48,.1); }
+.sev-badge.info     { color: #00e5ff; border-color: rgba(0,229,255,.5);  background: rgba(0,229,255,.1); }
+.stat-badge.active       { color: #ff3e6c; border-color: rgba(255,62,108,.4); }
+.stat-badge.resolved     { color: #a3ff57; border-color: rgba(163,255,87,.4); }
+.stat-badge.acknowledged { color: #ffb830; border-color: rgba(255,184,48,.4); }
+
+.ack-btn { padding: 2px 9px; font-family: var(--mono); font-size: .6rem; letter-spacing: .08em; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--dim); transition: all .15s; }
+.ack-btn:hover { border-color: var(--warn); color: var(--warn); }
+.td-subject { color: var(--text); max-width: 300px; }
+.td-ts { color: var(--dim); white-space: nowrap; }
+.empty-row { text-align: center; padding: 28px; color: var(--dim); font-size: .8rem; }
+
+/* ── AI Analysis Panel ── */
+#ai-panel {
+  display: none;
+  margin-top: 16px;
+  background: #0a0d18;
+  border: 1px solid rgba(179,136,255,.35);
+  position: relative;
+  overflow: hidden;
+}
+#ai-panel::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--ai) 40%, transparent);
+}
+.ai-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px 10px;
+  border-bottom: 1px solid rgba(179,136,255,.15);
+}
+.ai-icon { font-size: 1rem; }
+.ai-title { font-size: .65rem; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--ai); }
+.ai-alert-subject { font-family: var(--mono); font-size: .68rem; color: var(--dim); margin-left: 4px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-close { margin-left: auto; background: none; border: none; color: var(--dim); cursor: pointer; font-size: 1rem; padding: 2px 6px; transition: color .15s; }
+.ai-close:hover { color: var(--ai); }
+
+.ai-body { padding: 18px; min-height: 100px; }
+
+/* Pending spinner */
+.ai-pending {
+  display: flex; align-items: center; gap: 14px;
+  color: var(--dim); font-family: var(--mono); font-size: .78rem;
+}
+.ai-spinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid rgba(179,136,255,.2);
+  border-top-color: var(--ai);
+  animation: spin 0.9s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Disabled state */
+.ai-disabled {
+  color: var(--dim); font-family: var(--mono); font-size: .78rem;
+  display: flex; align-items: center; gap: 10px;
+}
+
+/* Analysis content */
+.ai-content {
+  font-family: var(--mono); font-size: .8rem;
+  color: var(--text); line-height: 1.75;
+  white-space: pre-wrap; word-break: break-word;
+}
+.ai-content strong, .ai-content b {
+  color: var(--ai); font-weight: 700;
+}
+/* Markdown bold rendered as spans */
+.ai-bold { color: var(--ai); font-weight: 700; }
+
+/* Typewriter cursor */
+.ai-cursor {
+  display: inline-block; width: 7px; height: 14px;
+  background: var(--ai); vertical-align: middle; margin-left: 2px;
+  animation: blink .8s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:0} }
+
+.ai-footer {
+  padding: 8px 18px 10px;
+  border-top: 1px solid rgba(179,136,255,.1);
+  font-family: var(--mono); font-size: .62rem;
+  color: rgba(179,136,255,.4);
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* log/config styles */
+.log-search { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: .82rem; padding: 8px 14px; outline: none; margin-bottom: 12px; transition: border-color .15s; }
+.log-search:focus { border-color: var(--accent); }
+.log-table-wrap { max-height: 480px; overflow-y: auto; }
+.log-source { color: var(--warn); white-space: nowrap; }
+.log-msg    { color: var(--text); word-break: break-all; }
+.log-ts     { color: var(--dim); white-space: nowrap; }
+
+.config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cfg-field { margin-bottom: 14px; }
+.cfg-label { display: block; font-size: .65rem; letter-spacing: .15em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+.cfg-input { width: 100%; padding: 9px 12px; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: .85rem; outline: none; transition: border-color .15s; }
+.cfg-input:focus { border-color: var(--accent); }
+.cfg-hint { font-family: var(--mono); font-size: .68rem; color: var(--dim); margin-top: 4px; }
+.toggle-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.toggle { width: 42px; height: 22px; border-radius: 11px; cursor: pointer; border: 1px solid var(--border); background: var(--bg); position: relative; transition: all .2s; }
+.toggle.on { background: rgba(163,255,87,.2); border-color: var(--accent3); }
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--dim); transition: all .2s; }
+.toggle.on::after { left: 22px; background: var(--accent3); }
+.toggle-label { font-family: var(--mono); font-size: .78rem; color: var(--text); }
+.tags-input { width: 100%; padding: 9px 12px; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: .85rem; outline: none; transition: border-color .15s; }
+.tags-input:focus { border-color: var(--accent); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 2px; font-family: var(--mono); font-size: .65rem; border: 1px solid; margin: 2px; }
+.tag.prod   { color: #ff3e6c; border-color: rgba(255,62,108,.4); background: rgba(255,62,108,.08); }
+.tag.test   { color: #ffb830; border-color: rgba(255,184,48,.4); background: rgba(255,184,48,.08); }
+.tag.db     { color: #a3ff57; border-color: rgba(163,255,87,.4); background: rgba(163,255,87,.08); }
+.tag.dev    { color: #00e5ff; border-color: rgba(0,229,255,.4);  background: rgba(0,229,255,.08); }
+.tag.custom { color: var(--dim); border-color: var(--border); background: transparent; }
+.save-btn { padding: 8px 22px; background: rgba(0,229,255,.1); border: 1px solid var(--accent); color: var(--accent); font-family: var(--ui); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; transition: all .15s; }
+.save-btn:hover  { background: rgba(0,229,255,.2); }
+.save-btn.saved  { border-color: var(--accent3); color: var(--accent3); background: rgba(163,255,87,.1); }
+.info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.info-card { background: var(--surface2); border: 1px solid var(--border); padding: 14px 16px; }
+.info-key   { font-family: var(--mono); font-size: .65rem; color: var(--dim); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+.info-val   { font-family: var(--mono); font-size: 1rem; color: var(--text); font-weight: 700; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+@keyframes fade-in { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none} }
+.fade-in { animation: fade-in .25s ease; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+.pulse { animation: pulse 2s infinite; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="/" class="back-btn">← Dashboard</a>
+  <div class="host-dot" id="hdr-dot"></div>
+  <div class="host-title" id="hdr-hostname">Loading…</div>
+  <div class="header-meta" id="hdr-meta"></div>
+  <div id="hdr-tags"></div>
+  <div class="header-right">
+    <a href="/settings" class="settings-link">⚙ Settings</a>
+    <div id="clock" class="pulse"></div>
+  </div>
+</header>
+
+<nav class="tabs-nav">
+  <button class="tab-btn active" onclick="switchTab('overview', this)">Overview</button>
+  <button class="tab-btn" onclick="switchTab('metrics', this)">Metrics</button>
+  <button class="tab-btn" onclick="switchTab('alerts', this)">Alerts <span id="alert-badge" style="color:var(--accent2)"></span></button>
+  <button class="tab-btn" onclick="switchTab('logs', this)">Logs</button>
+  <button class="tab-btn" onclick="switchTab('config', this)">Config</button>
+</nav>
+
+<!-- ══════════════ TAB: OVERVIEW ══════════════ -->
+<div class="tab-content active fade-in" id="tab-overview">
+  <div class="stat-bar">
+    <div class="stat-card cpu">
+      <div class="stat-label">CPU Usage</div>
+      <div class="stat-value" id="ov-cpu">--</div>
+      <div class="stat-sub">System-wide</div>
+    </div>
+    <div class="stat-card ram">
+      <div class="stat-label">RAM Usage</div>
+      <div class="stat-value" id="ov-ram">--</div>
+      <div class="stat-sub">Memory</div>
+    </div>
+    <div class="stat-card disk">
+      <div class="stat-label">Primary Disk</div>
+      <div class="stat-value" id="ov-disk">--</div>
+      <div class="stat-sub" id="ov-disk-path">—</div>
+    </div>
+    <div class="stat-card net">
+      <div class="stat-label">Network</div>
+      <div class="stat-value" id="ov-net">--</div>
+      <div class="stat-sub">RX / TX</div>
+    </div>
+  </div>
+
+  <div class="charts-2col">
+    <div class="panel">
+      <div class="panel-hdr">
+        <div class="panel-hdr-bar" style="background:var(--accent)"></div>
+        <div class="panel-title">CPU — 3h</div>
+      </div>
+      <div class="chart-wrap"><canvas id="ov-cpu-chart"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <div class="panel-hdr-bar" style="background:var(--accent2)"></div>
+        <div class="panel-title">RAM — 3h</div>
+      </div>
+      <div class="chart-wrap"><canvas id="ov-ram-chart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-2col">
+    <div class="panel">
+      <div class="panel-hdr">
+        <div class="panel-hdr-bar" style="background:var(--accent3)"></div>
+        <div class="panel-title">Disk Usage</div>
+      </div>
+      <div class="disk-list" id="ov-disks"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <div class="panel-hdr-bar" style="background:var(--warn)"></div>
+        <div class="panel-title">Services</div>
+      </div>
+      <div class="services-grid" id="ov-services"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr">
+      <div class="panel-hdr-bar" style="background:var(--accent2)"></div>
+      <div class="panel-title">Recent Alerts</div>
+      <div class="panel-badge" id="ov-alert-count"></div>
+    </div>
+    <div id="ov-alerts-mini"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: METRICS ══════════════ -->
+<div class="tab-content fade-in" id="tab-metrics">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="range-pills" id="metrics-range-pills" style="margin-bottom:0">
+      <button class="range-pill" onclick="setMetricsHours(1,this)">1h</button>
+      <button class="range-pill active" onclick="setMetricsHours(3,this)">3h</button>
+      <button class="range-pill" onclick="setMetricsHours(6,this)">6h</button>
+      <button class="range-pill" onclick="setMetricsHours(24,this)">24h</button>
+      <button class="range-pill" onclick="setMetricsHours(72,this)">3d</button>
+      <button class="range-pill" onclick="setMetricsHours(168,this)">7d</button>
+    </div>
+    <button style="margin-left:auto;padding:4px 14px;background:transparent;border:1px solid var(--accent3);color:var(--accent3);font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;cursor:pointer;transition:all .15s"
+      onmouseover="this.style.background='rgba(163,255,87,.1)'"
+      onmouseout="this.style.background='transparent'"
+      onclick="exportMetricsCSV()">⬇ Export CSV</button>
+  </div>
+  <div class="panel chart-full">
+    <div class="panel-hdr"><div class="panel-hdr-bar" style="background:var(--accent)"></div><div class="panel-title">CPU Usage %</div></div>
+    <div class="chart-wrap"><canvas id="m-cpu-chart"></canvas></div>
+  </div>
+  <div class="panel chart-full">
+    <div class="panel-hdr"><div class="panel-hdr-bar" style="background:var(--accent2)"></div><div class="panel-title">RAM Usage %</div></div>
+    <div class="chart-wrap"><canvas id="m-ram-chart"></canvas></div>
+  </div>
+  <div class="panel chart-full">
+    <div class="panel-hdr"><div class="panel-hdr-bar" style="background:var(--warn)"></div><div class="panel-title">Network Throughput (Bps)</div></div>
+    <div class="chart-wrap"><canvas id="m-net-chart"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-hdr"><div class="panel-hdr-bar" style="background:var(--accent3)"></div><div class="panel-title">Disk Usage</div></div>
+    <div class="disk-list" id="m-disks"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: ALERTS ══════════════ -->
+<div class="tab-content fade-in" id="tab-alerts">
+  <div class="alert-filters">
+    <button class="filter-btn active" onclick="filterAlerts('all',this)">All</button>
+    <button class="filter-btn" onclick="filterAlerts('active',this)">Active</button>
+    <button class="filter-btn" onclick="filterAlerts('acknowledged',this)">Acknowledged</button>
+    <button class="filter-btn" onclick="filterAlerts('resolved',this)">Resolved</button>
+    <button style="margin-left:auto;padding:3px 12px;background:transparent;border:1px solid var(--accent3);color:var(--accent3);font-family:var(--ui);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s"
+      onmouseover="this.style.background='rgba(163,255,87,.1)'"
+      onmouseout="this.style.background='transparent'"
+      onclick="exportAlertsCSV()">⬇ Export CSV</button>
+    <button style="padding:3px 12px;background:transparent;border:1px solid var(--border);color:var(--dim);font-family:var(--ui);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s"
+      onmouseover="this.style.borderColor='var(--accent2)';this.style.color='var(--accent2)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--dim)'"
+      onclick="clearAllAlerts()">Clear History</button>
+  </div>
+
+  <div class="panel" style="padding:0;overflow:hidden">
+    <div class="alert-table-wrap">
+      <table>
+        <thead><tr>
+          <th>Severity</th><th>Status</th><th>Time</th><th>Subject</th><th>AI</th><th></th>
+        </tr></thead>
+        <tbody id="alerts-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── AI Analysis Panel ── -->
+  <div id="ai-panel">
+    <div class="ai-header">
+      <span class="ai-icon">🤖</span>
+      <span class="ai-title">Claude AI Analysis</span>
+      <span class="ai-alert-subject" id="ai-alert-subject"></span>
+      <button class="ai-close" onclick="closeAiPanel()">✕</button>
+    </div>
+    <div class="ai-body" id="ai-body"></div>
+    <div class="ai-footer">
+      ⚡ Powered by Claude · Analysis generated automatically when alert fires
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: LOGS ══════════════ -->
+<div class="tab-content fade-in" id="tab-logs">
+  <input class="log-search" id="log-search" placeholder="// filter logs..." oninput="filterLogs()">
+  <div class="panel" style="padding:0;overflow:hidden">
+    <div class="log-table-wrap">
+      <table>
+        <thead><tr><th>Timestamp</th><th>Source</th><th>Message</th></tr></thead>
+        <tbody id="logs-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: CONFIG ══════════════ -->
+<div class="tab-content fade-in" id="tab-config">
+  <div class="config-grid">
+    <div>
+      <div class="panel">
+        <div class="panel-hdr">
+          <div class="panel-hdr-bar" style="background:var(--accent)"></div>
+          <div class="panel-title">Host Information</div>
+        </div>
+        <div class="info-grid" id="cfg-info" style="margin-bottom:16px"></div>
+        <div class="toggle-wrap">
+          <div class="toggle" id="monitoring-toggle" onclick="toggleMonitoring()"></div>
+          <div class="toggle-label">Monitoring enabled</div>
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">Tags</label>
+          <input class="tags-input" id="cfg-tags" placeholder="prod, db, nginx...">
+          <div class="cfg-hint">Comma-separated. Available: prod, test, db, dev</div>
+          <div id="cfg-tags-preview" style="margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <div class="panel-hdr">
+          <div class="panel-hdr-bar" style="background:var(--warn)"></div>
+          <div class="panel-title">Alert Thresholds</div>
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">CPU Threshold (%)</label>
+          <input class="cfg-input" id="cfg-cpu" type="number" min="1" max="100">
+          <div class="cfg-hint">Alert fires when CPU exceeds this value.</div>
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">RAM Threshold (%)</label>
+          <input class="cfg-input" id="cfg-ram" type="number" min="1" max="100">
+          <div class="cfg-hint">Alert fires when RAM exceeds this value.</div>
+        </div>
+        <div class="cfg-hint" id="cfg-global-hint" style="margin-bottom:16px"></div>
+        <button class="save-btn" id="cfg-save-btn" onclick="saveConfig()">Save Configuration</button>
+      </div>
+
+      <div class="panel" style="margin-top:20px;border-color:rgba(255,62,108,.3)">
+        <div class="panel-hdr">
+          <div class="panel-hdr-bar" style="background:var(--accent2)"></div>
+          <div class="panel-title" style="color:var(--accent2)">Danger Zone</div>
+        </div>
+        <div class="cfg-hint" style="margin-bottom:14px">
+          Permanently delete this host and all its metrics, logs, and alert history. This cannot be undone.
+          If its agent is still running, the host will simply reappear on its next check-in.
+        </div>
+        <button style="padding:8px 18px;background:rgba(255,62,108,.08);border:1px solid var(--accent2);color:var(--accent2);font-family:var(--ui);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s"
+          onmouseover="this.style.background='rgba(255,62,108,.18)'"
+          onmouseout="this.style.background='rgba(255,62,108,.08)'"
+          onclick="confirmDeleteThisHost()">Delete Host</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const hostname   = location.pathname.split('/host/')[1] || '';
+let allAlerts    = [];
+let allLogs      = [];
+let metricsHours = 3;
+let monitoringOn = true;
+let globalCfg    = {};
+let selectedAlertId  = null;
+let aiPollTimer      = null;
+
+// ── CSRF helper ────────────────────────────────────────────────────────────────
+async function _getCsrf() {
+  const res = await fetch('/api/csrf-token');
+  const data = await res.json();
+  return data.csrf_token;
+}
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+function tick() {
+  const n = new Date();
+  document.getElementById('clock').textContent =
+    n.toISOString().replace('T',' ').slice(0,19) + ' UTC';
+}
+setInterval(tick, 1000); tick();
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  document.title = `SysMon · ${hostname}`;
+  await Promise.all([loadOverview(), loadMetrics(3), loadAlerts(), loadLogs(), loadConfig()]);
+  setInterval(loadOverview, 30000);
+  setInterval(loadAlerts,   60000);
+}
+
+// ── Overview ──────────────────────────────────────────────────────────────────
+async function loadOverview() {
+  const [hostsRes, latestRes, metricsRes, alertsRes] = await Promise.all([
+    fetch('/api/hosts'),
+    fetch(`/api/latest/${hostname}`),
+    fetch(`/api/metrics/${hostname}?hours=3`),
+    fetch(`/api/alerts/${hostname}?limit=5&status=active`),
+  ]);
+  const hosts   = await hostsRes.json();
+  const latest  = latestRes.ok ? await latestRes.json() : null;
+  const metrics = await metricsRes.json();
+  const alerts  = await alertsRes.json();
+  const hostInfo = hosts.find(h => h.hostname === hostname) || {};
+  const online   = hostInfo.online;
+
+  const dot = document.getElementById('hdr-dot');
+  dot.className = `host-dot ${online ? 'online' : 'offline'}`;
+  document.getElementById('hdr-hostname').textContent = hostname;
+  document.getElementById('hdr-meta').textContent = `Last seen: ${timeSince(hostInfo.last_seen)}`;
+  document.getElementById('hdr-tags').innerHTML = (hostInfo.tags || []).map(t =>
+    `<span class="tag ${['prod','test','db','dev'].includes(t)?t:'custom'}" style="margin-left:4px">${t}</span>`
+  ).join('');
+
+  if (latest) {
+    document.getElementById('ov-cpu').innerHTML  = `${latest.cpu_percent?.toFixed(1) ?? '--'}<span style="font-size:.9rem">%</span>`;
+    document.getElementById('ov-ram').innerHTML  = `${latest.ram_percent?.toFixed(1) ?? '--'}<span style="font-size:.9rem">%</span>`;
+    const d0 = latest.disks?.[0];
+    document.getElementById('ov-disk').innerHTML = d0 ? `${d0.percent.toFixed(1)}<span style="font-size:.9rem">%</span>` : '--';
+    document.getElementById('ov-disk-path').textContent = d0?.path ?? '—';
+    const n0 = latest.network?.[0];
+    document.getElementById('ov-net').innerHTML  = n0 ? `↓${fmtBps(n0.rx_bps)}<br>↑${fmtBps(n0.tx_bps)}` : '--';
+
+    document.getElementById('ov-disks').innerHTML = (latest.disks || []).map(d => {
+      const cls = d.percent > 90 ? 'danger' : d.percent > 75 ? 'warn' : 'ok';
+      return `<div>
+        <div class="disk-hdr"><span>${d.path}</span><span>${d.percent.toFixed(1)}%</span></div>
+        <div class="disk-track"><div class="disk-fill ${cls}" style="width:${d.percent.toFixed(1)}%"></div></div>
+      </div>`;
+    }).join('') || '<div style="color:var(--dim);font-size:.8rem">No disk data.</div>';
+
+    document.getElementById('ov-services').innerHTML = (latest.services || []).map(s => {
+      const cls = s.status === 'active' ? 'active' : s.status === 'inactive' ? 'inactive' : 'unknown';
+      return `<div class="svc-pill ${cls}">
+        <div class="svc-dot"></div>
+        <span>${s.name}</span>
+        <span class="svc-status">${s.status}</span>
+      </div>`;
+    }).join('') || '<div style="color:var(--dim);font-size:.8rem">No service data.</div>';
+  }
+
+  const ts = metrics.map(m => fmtTs(m.timestamp));
+  drawChart('ov-cpu-chart', ts, [{ label:'CPU %', data: metrics.map(m=>m.cpu_percent), color:'#00e5ff' }]);
+  drawChart('ov-ram-chart', ts, [{ label:'RAM %', data: metrics.map(m=>m.ram_percent), color:'#ff3e6c' }]);
+
+  const ac = document.getElementById('ov-alert-count');
+  ac.textContent = alerts.length ? `${alerts.length} active` : '';
+  const am = document.getElementById('ov-alerts-mini');
+  if (!alerts.length) {
+    am.innerHTML = '<div style="color:var(--dim);font-size:.8rem;padding:8px 0">✔ No active alerts.</div>';
+  } else {
+    am.innerHTML = alerts.map(a => `
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:.74rem">
+        <span class="sev-badge ${a.severity}">${a.severity}</span>
+        <span style="color:var(--text);flex:1">${escHtml(a.subject)}</span>
+        <span style="color:var(--dim)">${timeSince(a.fired_at)}</span>
+      </div>`).join('');
+  }
+  document.getElementById('alert-badge').textContent = allAlerts.filter(a=>a.status==='active').length || '';
+}
+
+// ── Metrics tab ───────────────────────────────────────────────────────────────
+async function loadMetrics(hours) {
+  const res  = await fetch(`/api/metrics/${hostname}?hours=${hours}`);
+  const data = await res.json();
+  const ts   = data.map(m => fmtTs(m.timestamp));
+  drawChart('m-cpu-chart', ts, [{ label:'CPU %', data: data.map(m=>m.cpu_percent), color:'#00e5ff', fill:true }], 240);
+  drawChart('m-ram-chart', ts, [{ label:'RAM %', data: data.map(m=>m.ram_percent), color:'#ff3e6c', fill:true }], 240);
+
+  const ifaces = [...new Set(data.flatMap(m => m.network.map(n=>n.interface)))];
+  const netDs  = ifaces.flatMap((iface, i) => {
+    const colors = ['#ffb830','#a3ff57','#00e5ff','#ff3e6c'];
+    return [
+      { label:`${iface} RX`, data: data.map(m=>m.network.find(n=>n.interface===iface)?.rx_bps??0), color: colors[i%colors.length] },
+      { label:`${iface} TX`, data: data.map(m=>m.network.find(n=>n.interface===iface)?.tx_bps??0), color: colors[i%colors.length], dashed:true },
+    ];
+  });
+  drawChart('m-net-chart', ts, netDs, 240);
+
+  const latest = data[data.length - 1];
+  document.getElementById('m-disks').innerHTML = (latest?.disks || []).map(d => {
+    const cls = d.percent > 90 ? 'danger' : d.percent > 75 ? 'warn' : 'ok';
+    return `<div>
+      <div class="disk-hdr"><span>${d.path}</span><span>${d.percent.toFixed(1)}%</span></div>
+      <div class="disk-track"><div class="disk-fill ${cls}" style="width:${d.percent.toFixed(1)}%"></div></div>
+    </div>`;
+  }).join('') || '<div style="color:var(--dim);font-size:.8rem">No disk data.</div>';
+}
+
+function setMetricsHours(h, btn) {
+  metricsHours = h;
+  document.querySelectorAll('#metrics-range-pills .range-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadMetrics(h);
+}
+
+// ── Alerts tab ────────────────────────────────────────────────────────────────
+async function loadAlerts() {
+  const res = await fetch(`/api/alerts/${hostname}?limit=200`);
+  allAlerts = await res.json();
+  renderAlerts(_alertFilter || 'all');
+  document.getElementById('alert-badge').textContent =
+    allAlerts.filter(a=>a.status==='active').length || '';
+}
+
+let _alertFilter = 'all';
+function filterAlerts(filter, btn) {
+  _alertFilter = filter;
+  document.querySelectorAll('.alert-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderAlerts(filter);
+  closeAiPanel();
+}
+
+function renderAlerts(filter) {
+  const list = filter === 'all' ? allAlerts : allAlerts.filter(a => a.status === filter);
+  const tbody = document.getElementById('alerts-tbody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-row">✔ No ${filter === 'all' ? '' : filter + ' '}alerts.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(a => {
+    const hasAI    = !!a.ai_analysis;
+    const aiIcon   = hasAI
+      ? `<span title="AI analysis available" style="color:var(--ai);cursor:pointer">🤖</span>`
+      : `<span title="No AI analysis" style="color:var(--dim);font-size:.7rem">—</span>`;
+    const isActive = a.status === 'active';
+    return `<tr onclick="selectAlert(${a.id})" id="alert-row-${a.id}" ${a.id===selectedAlertId?'class="selected"':''}>
+      <td class="td-sev"><span class="sev-badge ${a.severity}">${a.severity}</span></td>
+      <td class="td-status"><span class="stat-badge ${a.status}">${a.status}</span></td>
+      <td class="td-ts">${new Date(a.fired_at*1000).toISOString().replace('T',' ').slice(0,19)}</td>
+      <td class="td-subject">${escHtml(a.subject)}</td>
+      <td style="text-align:center">${aiIcon}</td>
+      <td>${isActive ? `<button class="ack-btn" onclick="ackAlert(event,${a.id},this)">Ack</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function selectAlert(id) {
+  // Deselect previous
+  document.querySelectorAll('#alerts-tbody tr').forEach(r => r.classList.remove('selected'));
+  const row = document.getElementById(`alert-row-${id}`);
+  if (row) row.classList.add('selected');
+
+  if (selectedAlertId === id) {
+    // Toggle off
+    closeAiPanel();
+    return;
+  }
+  selectedAlertId = id;
+
+  const alert = allAlerts.find(a => a.id === id);
+  if (!alert) return;
+
+  // Show the panel immediately
+  const panel = document.getElementById('ai-panel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  document.getElementById('ai-alert-subject').textContent = alert.subject;
+
+  if (alert.ai_analysis) {
+    // Already have it — show with typewriter effect
+    showAiAnalysis(alert.ai_analysis);
+  } else {
+    // Show pending state and start polling
+    showAiPending();
+    startAiPolling(id);
+  }
+}
+
+function closeAiPanel() {
+  selectedAlertId = null;
+  stopAiPolling();
+  document.getElementById('ai-panel').style.display = 'none';
+  document.querySelectorAll('#alerts-tbody tr').forEach(r => r.classList.remove('selected'));
+}
+
+function showAiPending() {
+  document.getElementById('ai-body').innerHTML = `
+    <div class="ai-pending">
+      <div class="ai-spinner"></div>
+      <div>
+        <div style="color:var(--ai);margin-bottom:4px">Generating analysis…</div>
+        <div style="font-size:.7rem">Claude is analyzing metrics, alert history, and service state.</div>
+      </div>
+    </div>`;
+}
+
+function showAiDisabled() {
+  document.getElementById('ai-body').innerHTML = `
+    <div class="ai-disabled">
+      <span style="font-size:1.2rem">⚠️</span>
+      <div>
+        <div style="color:var(--warn);margin-bottom:4px">AI analysis is disabled</div>
+        <div style="font-size:.7rem">Set the <code style="color:var(--accent)">ANTHROPIC_API_KEY</code> environment variable to enable automatic alert analysis.</div>
+      </div>
+    </div>`;
+}
+
+function showAiAnalysis(text) {
+  stopAiPolling();
+  // Convert markdown bold **text** to styled spans
+  const html = escHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<span class="ai-bold">$1</span>')
+    .replace(/^(#{1,3} .+)$/gm, '<span class="ai-bold">$1</span>');
+
+  const body = document.getElementById('ai-body');
+  body.innerHTML = `<div class="ai-content" id="ai-text"></div>`;
+
+  // Typewriter effect
+  const el     = document.getElementById('ai-text');
+  const cursor = document.createElement('span');
+  cursor.className = 'ai-cursor';
+  el.appendChild(cursor);
+
+  // Strip HTML for typewriter, then re-apply formatting at end
+  const plain = text;
+  let i = 0;
+  const speed = Math.max(4, Math.min(18, Math.floor(3000 / plain.length)));
+
+  function type() {
+    if (i < plain.length) {
+      i += Math.ceil(plain.length / 300); // speed up for long text
+      i = Math.min(i, plain.length);
+      const partial = escHtml(plain.slice(0, i))
+        .replace(/\*\*(.+?)\*\*/g, '<span class="ai-bold">$1</span>');
+      el.innerHTML = partial;
+      el.appendChild(cursor);
+      requestAnimationFrame(type);
+    } else {
+      // Final render — remove cursor
+      el.innerHTML = html;
+    }
+  }
+  requestAnimationFrame(type);
+}
+
+function startAiPolling(alertId) {
+  stopAiPolling();
+  let attempts = 0;
+  aiPollTimer = setInterval(async () => {
+    attempts++;
+    if (attempts > 20) { stopAiPolling(); return; } // give up after ~20s
+
+    try {
+      const res  = await fetch(`/api/alerts/${alertId}/analysis`);
+      const data = await res.json();
+
+      if (data.status === 'ready' && data.ai_analysis) {
+        // Update in-memory alert so clicking again shows it immediately
+        const alert = allAlerts.find(a => a.id === alertId);
+        if (alert) alert.ai_analysis = data.ai_analysis;
+        // Update the AI icon in the table row
+        renderAlerts(_alertFilter);
+        const row = document.getElementById(`alert-row-${alertId}`);
+        if (row) row.classList.add('selected');
+        showAiAnalysis(data.ai_analysis);
+      } else if (data.status === 'disabled') {
+        stopAiPolling();
+        showAiDisabled();
+      }
+      // else: still pending, keep polling
+    } catch(e) {
+      console.error('AI poll error:', e);
+    }
+  }, 1500);
+}
+
+function stopAiPolling() {
+  if (aiPollTimer) { clearInterval(aiPollTimer); aiPollTimer = null; }
+}
+
+async function ackAlert(event, id, btn) {
+  event.stopPropagation(); // prevent row click
+  btn.textContent = '…'; btn.disabled = true;
+  const res = await fetch(`/api/alerts/${id}/acknowledge`, { method: 'POST' });
+  if (res.ok) { await loadAlerts(); }
+  else { btn.textContent = 'Ack'; btn.disabled = false; }
+}
+
+async function clearAllAlerts() {
+  if (!confirm(`Clear all alert history for ${hostname}?`)) return;
+  closeAiPanel();
+  const csrf = await _getCsrf();
+  await fetch(`/api/alerts/${hostname}`, {
+    method: 'DELETE',
+    headers: { 'X-CSRF-Token': csrf },
+  });
+  await loadAlerts();
+}
+
+// ── Logs tab ──────────────────────────────────────────────────────────────────
+async function loadLogs() {
+  const res = await fetch(`/api/logs/${hostname}?limit=500`);
+  allLogs = await res.json();
+  renderLogs('');
+}
+
+function filterLogs() {
+  renderLogs(document.getElementById('log-search').value.toLowerCase());
+}
+
+function renderLogs(query) {
+  const list = query
+    ? allLogs.filter(l => l.message.toLowerCase().includes(query) || (l.source||'').toLowerCase().includes(query))
+    : allLogs;
+  const tbody = document.getElementById('logs-tbody');
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No log events${query?' matching "'+escHtml(query)+'"':''}.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(l => `
+    <tr>
+      <td class="log-ts">${new Date(l.timestamp*1000).toISOString().replace('T',' ').slice(0,19)}</td>
+      <td class="log-source">${escHtml(l.source||'')}</td>
+      <td class="log-msg">${escHtml(l.message)}</td>
+    </tr>`).join('');
+}
+
+// ── Config tab ────────────────────────────────────────────────────────────────
+async function loadConfig() {
+  const [cfgRes, settingsRes, hostsRes] = await Promise.all([
+    fetch(`/api/host-config/${hostname}`),
+    fetch('/api/settings'),
+    fetch('/api/hosts'),
+  ]);
+  const cfg      = await cfgRes.json();
+  globalCfg      = await settingsRes.json();
+  const hosts    = await hostsRes.json();
+  const hostInfo = hosts.find(h => h.hostname === hostname) || {};
+
+  monitoringOn = cfg.monitoring;
+  document.getElementById('monitoring-toggle').className = `toggle ${monitoringOn ? 'on' : ''}`;
+  document.getElementById('cfg-cpu').value = cfg.cpu_threshold;
+  document.getElementById('cfg-ram').value = cfg.ram_threshold;
+  document.getElementById('cfg-tags').value = (cfg.tags || []).join(', ');
+  document.getElementById('cfg-global-hint').textContent =
+    `Global defaults: CPU ${globalCfg.alert_cpu}% · RAM ${globalCfg.alert_ram}%`;
+  updateTagsPreview();
+
+  document.getElementById('cfg-info').innerHTML = [
+    ['Hostname', hostname],
+    ['Status',   hostInfo.online ? '● Online' : '○ Offline'],
+    ['Last Seen', timeSince(hostInfo.last_seen)],
+    ['Tags',     (cfg.tags||[]).join(', ') || '—'],
+    ['CPU Alert', cfg.cpu_threshold + '%'],
+    ['RAM Alert', cfg.ram_threshold + '%'],
+  ].map(([k,v]) => `
+    <div class="info-card">
+      <div class="info-key">${k}</div>
+      <div class="info-val" style="${k==='Status'&&hostInfo.online?'color:var(--online)':k==='Status'?'color:var(--offline)':''}">${v}</div>
+    </div>`).join('');
+}
+
+function updateTagsPreview() {
+  const tags = document.getElementById('cfg-tags').value
+    .split(',').map(t=>t.trim()).filter(Boolean);
+  document.getElementById('cfg-tags-preview').innerHTML =
+    tags.map(t => `<span class="tag ${['prod','test','db','dev'].includes(t)?t:'custom'}">${t}</span>`).join('');
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('cfg-tags')?.addEventListener('input', updateTagsPreview);
+});
+
+function toggleMonitoring() {
+  monitoringOn = !monitoringOn;
+  document.getElementById('monitoring-toggle').className = `toggle ${monitoringOn ? 'on' : ''}`;
+}
+
+async function saveConfig() {
+  const cpu  = parseFloat(document.getElementById('cfg-cpu').value);
+  const ram  = parseFloat(document.getElementById('cfg-ram').value);
+  const tags = document.getElementById('cfg-tags').value;
+  if (isNaN(cpu)||isNaN(ram)||cpu<1||ram<1) { alert('Thresholds must be 1–100.'); return; }
+  const btn = document.getElementById('cfg-save-btn');
+  btn.textContent = 'Saving…';
+  const csrf = await _getCsrf();
+  const res = await fetch(`/api/host-config/${hostname}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+    body: JSON.stringify({ cpu_threshold: cpu, ram_threshold: ram, tags, monitoring: monitoringOn })
+  });
+  if (res.ok) {
+    btn.textContent = '✔ Saved'; btn.classList.add('saved');
+    setTimeout(() => { btn.textContent = 'Save Configuration'; btn.classList.remove('saved'); }, 2000);
+    await loadConfig();
+  } else {
+    btn.textContent = '✘ Failed';
+    setTimeout(() => { btn.textContent = 'Save Configuration'; }, 2000);
+  }
+}
+
+function confirmDeleteThisHost() {
+  if (!confirm(`Permanently delete "${hostname}" and all its metrics, logs, and alerts?\n\nThis cannot be undone. If its agent is still running, it will reappear on the next check-in.`)) return;
+  doDeleteThisHost();
+}
+
+async function doDeleteThisHost() {
+  const csrf = await _getCsrf();
+  const res = await fetch(`/api/hosts/${encodeURIComponent(hostname)}`, {
+    method: 'DELETE',
+    headers: { 'X-CSRF-Token': csrf },
+  });
+  if (res.ok) {
+    window.location.href = '/';
+  } else {
+    const data = await res.json().catch(() => ({}));
+    alert(data.detail || `Failed to delete ${hostname}.`);
+  }
+}
+
+// ── Chart helper ──────────────────────────────────────────────────────────────
+function drawChart(id, labels, datasets, height) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ex = Chart.getChart(canvas);
+  if (ex) ex.destroy();
+  if (height) canvas.parentElement.style.height = height + 'px';
+  new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: datasets.map(d => ({
+      label: d.label, data: d.data,
+      borderColor: d.color, backgroundColor: d.color + '15',
+      borderWidth: 1.5, pointRadius: 0,
+      fill: d.fill || false, tension: 0.3,
+      borderDash: d.dashed ? [4,3] : undefined,
+    })) },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode:'index', intersect:false },
+      scales: {
+        x: { ticks:{ color:'#3d5568', font:{size:9}, maxTicksLimit:8, maxRotation:0 }, grid:{ color:'#182230' } },
+        y: { ticks:{ color:'#3d5568', font:{size:9} }, grid:{ color:'#182230' }, min:0 }
+      },
+      plugins: {
+        legend: { labels:{ color:'#3d5568', font:{size:10}, boxWidth:10 } },
+        tooltip: { backgroundColor:'#0b1219', borderColor:'#182230', borderWidth:1,
+                   titleColor:'#00e5ff', bodyColor:'#c8d8e8' }
+      }
+    }
+  });
+}
+
+// ── CSV Export ───────────────────────────────────────────────────────────────
+function downloadCSV(filename, rows, headers) {
+  const escape = v => {
+    const s = String(v ?? '');
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+      ? '"' + s.replace(/"/g, '""') + '"'
+      : s;
+  };
+  const lines = [headers.join(',')];
+  rows.forEach(r => lines.push(r.map(escape).join(',')));
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportAlertsCSV() {
+  if (!allAlerts.length) { alert('No alerts to export.'); return; }
+  const headers = ['ID','Hostname','Type','Detail','Severity','Status','Subject','Fired At','Resolved At'];
+  const rows = allAlerts.map(a => [
+    a.id, a.hostname, a.alert_type, a.detail, a.severity, a.status,
+    a.subject,
+    a.fired_at    ? new Date(a.fired_at * 1000).toISOString()    : '',
+    a.resolved_at ? new Date(a.resolved_at * 1000).toISOString() : '',
+  ]);
+  const ts = new Date().toISOString().slice(0,10);
+  downloadCSV(`sysmon_alerts_${hostname}_${ts}.csv`, rows, headers);
+}
+
+async function exportMetricsCSV() {
+  const res  = await fetch(`/api/metrics/${hostname}?hours=${metricsHours}`);
+  const data = await res.json();
+  if (!data.length) { alert('No metrics to export.'); return; }
+  const headers = ['Timestamp','CPU %','RAM %','Disk / %','RX Bps','TX Bps'];
+  const rows = data.map(m => [
+    new Date(m.timestamp * 1000).toISOString(),
+    m.cpu_percent.toFixed(2),
+    m.ram_percent.toFixed(2),
+    m.disks?.[0]?.percent?.toFixed(1) ?? '',
+    m.network?.[0]?.rx_bps?.toFixed(0) ?? '',
+    m.network?.[0]?.tx_bps?.toFixed(0) ?? '',
+  ]);
+  const ts = new Date().toISOString().slice(0,10);
+  downloadCSV(`sysmon_metrics_${hostname}_${metricsHours}h_${ts}.csv`, rows, headers);
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function fmtTs(ts) {
+  const d = new Date(ts*1000);
+  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+function timeSince(ts) {
+  const d = Math.floor(Date.now()/1000) - ts;
+  if (d < 60) return `${d}s ago`;
+  if (d < 3600) return `${Math.floor(d/60)}m ago`;
+  return `${Math.floor(d/3600)}h ago`;
+}
+function fmtBps(bps) {
+  if (bps >= 1e6) return (bps/1e6).toFixed(1)+'MB/s';
+  if (bps >= 1e3) return (bps/1e3).toFixed(1)+'KB/s';
+  return bps.toFixed(0)+'B/s';
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+init();
+</script>
+</body>
+</html>

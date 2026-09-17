@@ -1,0 +1,21 @@
+# C agent build output
+agent/*.o
+agent/sysmon-agent
+
+# Python
+server/__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# Runtime-generated: TLS cert/key (see ensure_tls_cert() in server.py)
+server/server.crt
+server/server.key
+
+# Runtime-generated: SQLite databases
+server/sysmon.db
+server/sysmon_test.db
+*.db
+
+# Local environment overrides
+.env

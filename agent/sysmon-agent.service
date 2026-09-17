@@ -1,0 +1,33 @@
+[Unit]
+Description=System Monitoring Agent
+After=network.target
+Documentation=https://github.com/yourorg/sysmon
+
+[Service]
+Type=simple
+User=sysmon
+Group=sysmon
+ExecStart=/usr/local/bin/sysmon-agent /etc/sysmon-agent/config.json
+Restart=always
+RestartSec=5
+
+# ── FIX #2: Systemd hardening — run as least-privilege user ──────────────────
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sysmon-agent /etc/sysmon-agent
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

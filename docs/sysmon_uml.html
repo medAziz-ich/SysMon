@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SysMon — UML Diagrams</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;600;800&display=swap');
+
+:root {
+  --bg: #080c10;
+  --surface: #0d1318;
+  --border: #1a2530;
+  --accent: #00e5ff;
+  --accent2: #ff3e6c;
+  --accent3: #a3ff57;
+  --warn: #ffb830;
+  --text: #c8d8e8;
+  --dim: #4a6070;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-ui: 'Syne', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,229,255,.012) 3px, rgba(0,229,255,.012) 4px);
+  pointer-events: none; z-index: 9999;
+}
+
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 36px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, #0a1520 0%, #080c10 100%);
+  position: sticky; top: 0; z-index: 100;
+}
+
+.logo {
+  font-size: 1.1rem; font-weight: 800; letter-spacing: .12em;
+  color: var(--accent); text-transform: uppercase;
+}
+.logo span { color: var(--accent2); }
+.logo sub { font-size: .6rem; color: var(--dim); letter-spacing: .05em; margin-left: 8px; }
+
+.tabs {
+  display: flex; gap: 4px;
+  padding: 0 36px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.tab {
+  padding: 12px 20px;
+  font-size: .68rem; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--dim); cursor: pointer; border: none; background: none;
+  font-family: var(--font-mono);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.content {
+  padding: 36px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.panel { display: none; }
+.panel.active { display: block; animation: fade-in .25s ease; }
+
+@keyframes fade-in { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none} }
+
+.diagram-block {
+  margin-bottom: 40px;
+}
+
+.diagram-title {
+  font-size: .62rem; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--dim); margin-bottom: 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.diagram-title::before {
+  content: ''; display: inline-block; width: 3px; height: 14px;
+  background: var(--accent);
+}
+.diagram-title.red::before { background: var(--accent2); }
+.diagram-title.green::before { background: var(--accent3); }
+.diagram-title.yellow::before { background: var(--warn); }
+
+.diagram-desc {
+  font-family: var(--font-mono);
+  font-size: .75rem; color: var(--dim); margin-bottom: 18px; line-height: 1.7;
+}
+
+.diagram-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 28px;
+  overflow-x: auto;
+}
+
+.diagram-card .mermaid {
+  display: flex; justify-content: center;
+}
+
+/* Mermaid theme overrides */
+.mermaid svg { max-width: 100%; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+
+.grid-2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
+}
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sys<span>Mon</span><sub>UML Diagrams</sub></div>
+  <div style="font-family:var(--font-mono);font-size:.7rem;color:var(--dim)">5 Diagrams · Agent + Server</div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('arch')">System Architecture</button>
+  <button class="tab" onclick="showTab('class')">Class Diagram</button>
+  <button class="tab" onclick="showTab('seq')">Sequence Diagram</button>
+  <button class="tab" onclick="showTab('state')">State Machine</button>
+  <button class="tab" onclick="showTab('er')">Database ER</button>
+</div>
+
+<div class="content">
+
+  <!-- ── Architecture ── -->
+  <div class="panel active" id="tab-arch">
+    <div class="diagram-block">
+      <div class="diagram-title">Component Architecture</div>
+      <div class="diagram-desc">High-level view of the two-component system: the C agent running on monitored hosts, and the Python FastAPI server with its web dashboard.</div>
+      <div class="diagram-card">
+        <div class="mermaid">
+graph TB
+    subgraph AGENT["🖥 sysmon-agent (C)"]
+        direction TB
+        MAIN["main.c\nEntry point / config loader"]
+        COLLECTOR["collector_thread\nCPU · RAM · Disk · Network · Services"]
+        TAILER["log_tailer threads\n(one per log_monitor)"]
+        QUEUE["queue.c\nSQLite persistent buffer"]
+        SENDER["sender_thread\nHTTP POST w/ exponential backoff"]
+        REG["auto_register()\nOne-time key acquisition"]
+    end
+
+    subgraph SERVER["☁ sysmon-server (Python / FastAPI)"]
+        direction TB
+        INGEST["/ingest\nValidate · Store · Alert"]
+        REGISTER["/register\nIssue API keys"]
+        APIHOSTS["/api/hosts\n/api/metrics/{h}\n/api/logs/{h}\n/api/latest/{h}"]
+        APICONF["/api/host-config\n/api/alerts\n/api/settings"]
+        AUTH["/api/auth/*\nSession management"]
+        ALERT["AlertEngine\nThreshold · Spike · Combined"]
+        DB["SQLite sysmon.db"]
+        NOTIF["Email (SMTP)\nWebhook (Slack/Discord)"]
+        DASH["Web Dashboard\ndashboard.html · host_detail.html\nlogin.html · settings.html"]
+    end
+
+    COLLECTOR -->|"JSON payload"| QUEUE
+    TAILER -->|"log_event JSON"| QUEUE
+    QUEUE -->|dequeue| SENDER
+    SENDER -->|"HTTPS POST Bearer token"| INGEST
+    SENDER -->|"No token? POST secret"| REGISTER
+    REGISTER -->|api_key| SENDER
+    REG -.->|"saves api_key to config.json"| MAIN
+
+    INGEST --> DB
+    INGEST --> ALERT
+    ALERT --> NOTIF
+    APIHOSTS --> DB
+    APICONF --> DB
+    AUTH --> DB
+
+    DASH -->|"fetch()"| APIHOSTS
+    DASH -->|"fetch()"| APICONF
+    DASH -->|"fetch()"| AUTH
+
+    style AGENT fill:#0a1520,stroke:#00e5ff,stroke-width:2px,color:#c8d8e8
+    style SERVER fill:#0a1520,stroke:#ff3e6c,stroke-width:2px,color:#c8d8e8
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Class ── -->
+  <div class="panel" id="tab-class">
+    <div class="diagram-block">
+      <div class="diagram-title red">Agent — C Structs & Modules</div>
+      <div class="diagram-desc">Data structures and function groupings in the agent codebase (main.c + queue.c + cJSON).</div>
+      <div class="diagram-card">
+        <div class="mermaid">
+classDiagram
+    class Config {
+        +char* server_url
+        +char* auth_token
+        +char* register_url
+        +char* reg_secret
+        +int interval
+        +int max_buffer
+        +char hostname[256]
+        +load_config(path)
+    }
+
+    class StringList {
+        +char* str
+        +StringList* next
+    }
+
+    class NetIface {
+        +char* name
+        +unsigned long long prev_rx
+        +unsigned long long prev_tx
+        +time_t prev_time
+        +double rx_bps
+        +double tx_bps
+        +NetIface* next
+        +update_network()
+    }
+
+    class LogMonitor {
+        +char* name
+        +char* file
+        +regex_t regex
+        +LogMonitor* next
+    }
+
+    class CurlBuf {
+        +char* data
+        +size_t size
+        +curl_write_cb()
+    }
+
+    class QueueModule {
+        +sqlite3* db
+        +pthread_mutex_t queue_mutex
+        +queue_init(db_path)
+        +queue_enqueue(payload)
+        +queue_dequeue(out_id, retry_count, first_attempt)
+        +queue_update_retry(id, new_retry)
+        +queue_delete(id)
+        +queue_close()
+    }
+
+    class Threads {
+        +collector_thread()
+        +sender_thread(config_path)
+        +log_tailer(LogMonitor*)
+        +pthread_cond_t queue_cond
+    }
+
+    class MetricsCollector {
+        +get_cpu_usage() double
+        +get_ram_usage() double
+        +get_disk_usage(path) double
+        +get_service_status(svc) char*
+    }
+
+    class HttpClient {
+        +send_payload(payload) long
+        +auto_register(config_path) bool
+    }
+
+    Config "1" --> "*" StringList : disk_paths
+    Config "1" --> "*" StringList : services
+    Config "1" --> "*" NetIface : net_ifaces
+    Config "1" --> "*" LogMonitor : log_monitors
+    Threads --> QueueModule : enqueue / dequeue
+    Threads --> MetricsCollector : collect metrics
+    Threads --> HttpClient : send HTTP POST
+    HttpClient --> CurlBuf : response buffer
+        </div>
+      </div>
+    </div>
+
+    <div class="diagram-block">
+      <div class="diagram-title green">Server — Python Classes & DB Models</div>
+      <div class="diagram-desc">FastAPI server modules, alert engine, and database tables modelled as classes.</div>
+      <div class="diagram-card">
+        <div class="mermaid">
+classDiagram
+    class FastAPIApp {
+        +limit_payload_size() middleware
+        +lifespan() init_db
+    }
+
+    class AuthModule {
+        +dict _sessions
+        +_create_session(username) str
+        +_validate_session(token) str
+        +require_session(request) str
+        +verify_agent(credentials) Row
+        +_hash(raw) str
+        +_lookup_key(raw_key) Row
+    }
+
+    class RateLimiter {
+        +dict _rate_buckets
+        +_check_rate_limit(key)
+    }
+
+    class AlertEngine {
+        +dict _metric_history
+        +check_alerts(hostname, cpu, ram, services)
+        +_push_history(hostname, cpu, ram)
+        +_cpu_spike(hostname, thr, win) float
+        +_ram_spike(hostname, thr, win) float
+        +_check_smart_alerts(hostname, cpu, ram, cpu_thr, ram_thr)
+        +_is_monitoring_enabled(hostname) bool
+        +_in_cooldown(hostname, type, detail) bool
+        +_get_thresholds(hostname) tuple
+        +_fire_alert(...)
+        +_record_alert(...) int
+        +_resolve_alert(...)
+    }
+
+    class NotificationModule {
+        +_send_email(subject, body)
+        +_send_webhook(subject, body, level)
+    }
+
+    class SettingsModule {
+        +get_settings() dict
+        +save_setting(key, value)
+    }
+
+    class DatabaseModule {
+        +init_db()
+        +purge_old_data()
+    }
+
+    class DBTable_metrics {
+        +int id
+        +str hostname
+        +int timestamp
+        +float cpu_percent
+        +float ram_percent
+        +str raw_json
+    }
+
+    class DBTable_log_events {
+        +int id
+        +str hostname
+        +int timestamp
+        +str source
+        +str message
+    }
+
+    class DBTable_api_keys {
+        +int id
+        +str agent_name
+        +str key_hash
+        +int created_at
+        +int last_seen
+        +int enabled
+    }
+
+    class DBTable_alert_history {
+        +int id
+        +str hostname
+        +str alert_type
+        +str detail
+        +str severity
+        +str status
+        +int fired_at
+        +int resolved_at
+        +str acked_by
+    }
+
+    class DBTable_host_config {
+        +str hostname PK
+        +float cpu_threshold
+        +float ram_threshold
+        +int monitoring
+        +str tags
+    }
+
+    class DBTable_settings {
+        +str key PK
+        +str value
+    }
+
+    class DBTable_dashboard_users {
+        +int id
+        +str username
+        +str display_name
+        +str password_hash
+        +int approved
+    }
+
+    FastAPIApp --> AuthModule : depends
+    FastAPIApp --> RateLimiter : uses
+    FastAPIApp --> AlertEngine : triggers on ingest
+    AlertEngine --> NotificationModule : fire alerts
+    AlertEngine --> SettingsModule : read thresholds
+    AuthModule --> DatabaseModule : query api_keys
+    DatabaseModule --> DBTable_metrics
+    DatabaseModule --> DBTable_log_events
+    DatabaseModule --> DBTable_api_keys
+    DatabaseModule --> DBTable_alert_history
+    DatabaseModule --> DBTable_host_config
+    DatabaseModule --> DBTable_settings
+    DatabaseModule --> DBTable_dashboard_users
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Sequence ── -->
+  <div class="panel" id="tab-seq">
+
+    <div class="diagram-block">
+      <div class="diagram-title yellow">Agent Boot & Auto-Registration Flow</div>
+      <div class="diagram-desc">Sequence from agent startup to first successful metric delivery, including the one-time registration handshake.</div>
+      <div class="diagram-card">
+        <div class="mermaid">
+sequenceDiagram
+    participant M as main.c
+    participant R as auto_register()
+    participant S as sender_thread
+    participant Q as queue.c (SQLite)
+    participant C as collector_thread
+    participant SRV as Server /register
+    participant INGEST as Server /ingest
+
+    M->>M: load_config(config.json)
+    alt No auth_token in config
+        M->>R: auto_register(config_path)
+        R->>SRV: POST /register {agent_name, secret}
+        SRV-->>R: 201 {api_key}
+        R->>R: auth_token = api_key
+        R->>M: write api_key back to config.json
+    end
+    M->>Q: queue_init("/var/lib/sysmon-agent/queue.db")
+    M->>C: pthread_create(collector_thread)
+    M->>S: pthread_create(sender_thread)
+    M->>M: pthread_create(log_tailer × N)
+
+    loop every interval_seconds
+        C->>C: get_cpu, get_ram, get_disk, update_network, get_service_status
+        C->>Q: queue_enqueue(JSON payload)
+        Q-->>C: signal queue_cond
+    end
+
+    loop sender loop
+        S->>Q: queue_dequeue(&row_id, &retry, &first_attempt)
+        Q-->>S: payload
+        S->>INGEST: POST /ingest Authorization: Bearer token
+        alt HTTP 2xx
+            INGEST-->>S: 202 accepted
+            S->>Q: queue_delete(row_id)
+        else HTTP 401 token rejected
+            INGEST-->>S: 401
+            S->>SRV: POST /register re-register
+            SRV-->>S: 201 new api_key
+            S->>Q: queue_update_retry(row_id, 0)
+        else HTTP 429 rate limited
+            INGEST-->>S: 429
+            S->>S: sleep(60s)
+        else Network error / 5xx
+            S->>Q: queue_update_retry(row_id, retry+1)
+            S->>S: exponential backoff (5s → 120s)
+        end
+    end
+        </div>
+      </div>
+    </div>
+
+    <div class="diagram-block">
+      <div class="diagram-title">Dashboard Authentication & Data Flow</div>
+      <div class="diagram-desc">Browser user authenticates, then the dashboard fetches live data from the API.</div>
+      <div class="diagram-card">
+        <div class="mermaid">
+sequenceDiagram
+    participant B as Browser
+    participant S as FastAPI Server
+    participant DB as SQLite sysmon.db
+
+    B->>S: GET /
+    S->>S: require_session — no cookie
+    S-->>B: 307 Redirect /login
+
+    B->>S: GET /login
+    S-->>B: 200 login.html
+
+    B->>S: POST /api/auth/login {username, password}
+    S->>DB: SELECT dashboard_users WHERE username=? AND password_hash=? AND approved=1
+    DB-->>S: user row
+    S->>S: _create_session(username) → token
+    S-->>B: 200 Set-Cookie: sysmon_session=token
+
+    B->>S: GET / (with cookie)
+    S->>S: require_session → valid
+    S-->>B: 200 dashboard.html
+
+    B->>S: GET /api/hosts
+    S->>DB: SELECT hostname, MAX(timestamp) FROM metrics GROUP BY hostname
+    DB-->>S: rows
+    S-->>B: [{hostname, online, tags, ...}]
+
+    B->>S: GET /api/metrics/{hostname}?hours=3
+    S->>DB: SELECT metrics WHERE hostname=? AND timestamp>=cutoff
+    DB-->>S: metric rows
+    S-->>B: [{timestamp, cpu, ram, disks, network, services}]
+
+    B->>S: GET /api/alerts/{hostname}
+    S->>DB: SELECT alert_history WHERE hostname=?
+    DB-->>S: alert rows
+    S-->>B: [{id, alert_type, severity, status, ...}]
+        </div>
+      </div>
+    </div>
+
+    <div class="diagram-block">
+      <div class="diagram-title red">Alert Pipeline</div>
+      <div class="diagram-desc">How a metric ingest triggers alert evaluation, notification dispatch, and state resolution.</div>
+      <div class="diagram-card">
+        <div class="mermaid">
+sequenceDiagram
+    participant INGEST as /ingest endpoint
+    participant AE as AlertEngine
+    participant DB as SQLite
+    participant EMAIL as SMTP
+    participant HOOK as Webhook
+
+    INGEST->>DB: INSERT INTO metrics
+    INGEST->>AE: threading.Thread(check_alerts, hostname, cpu, ram, services)
+
+    AE->>DB: SELECT host_config (cpu_threshold, ram_threshold, monitoring)
+    DB-->>AE: thresholds
+
+    AE->>AE: _push_history(hostname, cpu, ram)
+
+    alt CPU > cpu_threshold
+        AE->>DB: SELECT alert_history (cooldown check)
+        DB-->>AE: not in cooldown
+        AE->>DB: INSERT INTO alert_history (active)
+        AE->>EMAIL: _send_email() [thread]
+        AE->>HOOK: _send_webhook() [thread]
+    else CPU ≤ threshold
+        AE->>DB: UPDATE alert_history status=resolved
+    end
+
+    alt CPU spike detected (rate-of-change)
+        AE->>DB: INSERT alert cpu:spike
+        AE->>EMAIL: send spike email [thread]
+        AE->>HOOK: send spike webhook [thread]
+    end
+
+    alt CPU > thr AND RAM > thr (combined)
+        AE->>DB: INSERT alert combined:cpu+ram (critical)
+        AE->>EMAIL: send critical email [thread]
+        AE->>HOOK: send critical webhook [thread]
+    end
+
+    loop For each service in payload
+        AE->>DB: SELECT service_state (prev status)
+        DB-->>AE: prev_status
+        AE->>DB: UPSERT service_state (new status)
+        alt Service went DOWN (active→failed)
+            AE->>DB: INSERT alert service:down (critical)
+            AE->>EMAIL: service down email [thread]
+            AE->>HOOK: service down webhook [thread]
+        else Service RECOVERED (failed→active)
+            AE->>DB: UPDATE alert service:down → resolved
+            AE->>DB: INSERT alert service:up (info)
+        end
+    end
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── State ── -->
+  <div class="panel" id="tab-state">
+    <div class="grid-2">
+
+      <div class="diagram-block">
+        <div class="diagram-title yellow">Agent Queue Message Lifecycle</div>
+        <div class="diagram-desc">State of a payload row in the SQLite queue from enqueue to deletion.</div>
+        <div class="diagram-card">
+          <div class="mermaid">
+stateDiagram-v2
+    [*] --> Queued : queue_enqueue()
+
+    Queued --> Sending : queue_dequeue()
+
+    Sending --> Deleted : HTTP 2xx\nqueue_delete()
+    Sending --> Queued : HTTP 401\nauto_register → reset retry=0
+    Sending --> Waiting : HTTP 5xx / network error\nqueue_update_retry(retry+1)
+    Sending --> Waiting : HTTP 429\nsleep(60s)
+    Sending --> Deleted : retry ≥ MAX_RETRIES (12)\ndropped
+
+    Waiting --> Sending : backoff elapsed\nqueue_dequeue()
+    Waiting --> Deleted : age > 7 days\ndropped
+
+    Deleted --> [*]
+          </div>
+        </div>
+      </div>
+
+      <div class="diagram-block">
+        <div class="diagram-title red">Alert Lifecycle (Server)</div>
+        <div class="diagram-desc">State transitions for a row in alert_history from when it fires to resolution or acknowledgement.</div>
+        <div class="diagram-card">
+          <div class="mermaid">
+stateDiagram-v2
+    [*] --> active : _fire_alert()\n_record_alert()
+
+    active --> resolved : metric returns\nbelow threshold\n_resolve_alert()
+
+    active --> acknowledged : dashboard user\nPOST /api/alerts/{id}/acknowledge
+
+    active --> active : cooldown: same alert\nsuppressed until\ncooldown expires
+
+    resolved --> [*] : purge after 30 days
+    acknowledged --> [*] : purge after 30 days
+          </div>
+        </div>
+      </div>
+
+      <div class="diagram-block">
+        <div class="diagram-title green">Agent Registration State</div>
+        <div class="diagram-desc">Token acquisition and re-registration on 401.</div>
+        <div class="diagram-card">
+          <div class="mermaid">
+stateDiagram-v2
+    [*] --> CheckToken : startup
+
+    CheckToken --> Registered : auth_token present\nin config.json
+    CheckToken --> Registering : no auth_token\nor empty
+
+    Registering --> Registered : POST /register OK\napi_key saved
+    Registering --> Failed : registration error\n(bad secret / network)
+
+    Registered --> SendingMetrics : queue has items
+
+    SendingMetrics --> Registered : HTTP 2xx
+
+    SendingMetrics --> Reregistering : HTTP 401\ntoken rejected
+
+    Reregistering --> Registered : POST /register OK\nnew key saved
+    Reregistering --> BackingOff : registration failed
+
+    BackingOff --> Reregistering : retry
+
+    Failed --> [*] : exit(1)
+          </div>
+        </div>
+      </div>
+
+      <div class="diagram-block">
+        <div class="diagram-title">Dashboard Session State</div>
+        <div class="diagram-desc">Browser session flow from unauthenticated to authenticated.</div>
+        <div class="diagram-card">
+          <div class="mermaid">
+stateDiagram-v2
+    [*] --> Unauthenticated : browser visits /
+
+    Unauthenticated --> LoginPage : 307 redirect /login
+
+    LoginPage --> Authenticating : POST /api/auth/login
+
+    Authenticating --> Authenticated : 200 + Set-Cookie\nsession token created
+
+    Authenticating --> LoginPage : 401 invalid\ncredentials
+
+    Authenticated --> Dashboard : GET / (valid cookie)
+
+    Dashboard --> Authenticated : any API call\nwith valid session
+
+    Authenticated --> Unauthenticated : POST /api/auth/logout\ncookie deleted
+
+    Authenticated --> Unauthenticated : session TTL expired\n(24 hours)
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── ER ── -->
+  <div class="panel" id="tab-er">
+    <div class="diagram-block">
+      <div class="diagram-title">Database Entity-Relationship (sysmon.db)</div>
+      <div class="diagram-desc">All tables in the server SQLite database and their relationships. The agent also has its own queue.db with a single pending_messages table.</div>
+      <div class="diagram-card">
+        <div class="mermaid">
+erDiagram
+    api_keys {
+        INTEGER id PK
+        TEXT agent_name UK
+        TEXT key_hash UK
+        INTEGER created_at
+        INTEGER last_seen
+        INTEGER enabled
+    }
+
+    metrics {
+        INTEGER id PK
+        TEXT hostname FK
+        INTEGER timestamp
+        REAL cpu_percent
+        REAL ram_percent
+        TEXT raw_json
+    }
+
+    log_events {
+        INTEGER id PK
+        TEXT hostname FK
+        INTEGER timestamp
+        TEXT source
+        TEXT message
+    }
+
+    alert_history {
+        INTEGER id PK
+        TEXT hostname FK
+        TEXT alert_type
+        TEXT detail
+        TEXT severity
+        TEXT subject
+        TEXT body
+        TEXT status
+        INTEGER fired_at
+        INTEGER resolved_at
+        INTEGER acked_at
+        TEXT acked_by FK
+    }
+
+    service_state {
+        TEXT hostname FK
+        TEXT service
+        TEXT last_status
+        INTEGER updated_at
+    }
+
+    host_config {
+        TEXT hostname PK
+        REAL cpu_threshold
+        REAL ram_threshold
+        INTEGER monitoring
+        TEXT tags
+    }
+
+    settings {
+        TEXT key PK
+        TEXT value
+    }
+
+    dashboard_users {
+        INTEGER id PK
+        TEXT username UK
+        TEXT display_name
+        TEXT password_hash
+        INTEGER approved
+        INTEGER created_at
+    }
+
+    alert_history_ack {
+        INTEGER alert_id FK
+        TEXT acked_by FK
+        INTEGER acked_at
+    }
+
+    api_keys ||--o{ metrics : "agent sends"
+    api_keys ||--o{ log_events : "agent sends"
+    host_config ||--o{ metrics : "configures"
+    host_config ||--o{ alert_history : "thresholds apply"
+    metrics ||--o{ alert_history : "triggers"
+    metrics ||--o{ service_state : "updates"
+    dashboard_users ||--o{ alert_history_ack : "acknowledges"
+    alert_history ||--o| alert_history_ack : "acked via"
+        </div>
+      </div>
+    </div>
+
+    <div class="diagram-block">
+      <div class="diagram-title red">Agent Queue DB (queue.db)</div>
+      <div class="diagram-desc">Separate SQLite database on the monitored host for persistent buffering of outbound payloads.</div>
+      <div class="diagram-card">
+        <div class="mermaid">
+erDiagram
+    pending_messages {
+        INTEGER id PK
+        TEXT payload
+        INTEGER retry_count
+        INTEGER first_attempt
+        INTEGER created_at
+    }
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  themeVariables: {
+    darkMode: true,
+    background: '#0d1318',
+    primaryColor: '#0d2030',
+    primaryTextColor: '#c8d8e8',
+    primaryBorderColor: '#00e5ff',
+    lineColor: '#4a6070',
+    secondaryColor: '#0a1520',
+    tertiaryColor: '#0a1520',
+    edgeLabelBackground: '#0d1318',
+    clusterBkg: '#0a1520',
+    clusterBorder: '#1a2530',
+    titleColor: '#00e5ff',
+    nodeBorder: '#1a2530',
+    mainBkg: '#0d1318',
+    actorBkg: '#0d2030',
+    actorBorder: '#00e5ff',
+    actorTextColor: '#c8d8e8',
+    actorLineColor: '#4a6070',
+    signalColor: '#00e5ff',
+    signalTextColor: '#c8d8e8',
+    labelBoxBkgColor: '#0d1318',
+    labelBoxBorderColor: '#1a2530',
+    labelTextColor: '#c8d8e8',
+    loopTextColor: '#c8d8e8',
+    noteBorderColor: '#ffb830',
+    noteBkgColor: '#1a1000',
+    noteTextColor: '#ffb830',
+    activationBorderColor: '#ff3e6c',
+    activationBkgColor: '#200a10',
+    sequenceNumberColor: '#080c10',
+    fontFamily: '"Share Tech Mono", monospace',
+    fontSize: '13px',
+    fillType0: '#0d2030',
+    fillType1: '#0d1a10',
+    fillType2: '#1a0d20',
+    fillType3: '#1a1000',
+    fillType4: '#0a1520',
+    fillType5: '#0d1318',
+    fillType6: '#200a10',
+    fillType7: '#0a1a10',
+  },
+  flowchart: { curve: 'basis', padding: 20 },
+  sequence: { actorMargin: 60, width: 160, height: 50, boxMargin: 10 },
+  er: { diagramPadding: 20, layoutDirection: 'TB', minEntityWidth: 100, fontSize: 12 },
+});
+
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+</script>
+</body>
+</html>

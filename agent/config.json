@@ -1,0 +1,18 @@
+{
+  "server_url":           "https://127.0.0.1:8443/ingest",
+  "auth_token":           "",
+  "registration_secret":  "change-me-before-deploy",
+  "ca_cert":              "/etc/sysmon-agent/server.crt",
+  "interval_seconds":     60,
+  "max_buffer":           1000,
+  "disk_paths":           ["/"],
+  "network_interfaces":   ["eth0", "ens33", "wlan0"],
+  "services":             ["nginx", "postgresql", "ssh"],
+  "log_monitors": [
+    {
+      "name":  "auth_failures",
+      "file":  "/var/log/auth.log",
+      "regex": "Failed password|authentication failure"
+    }
+  ]
+}

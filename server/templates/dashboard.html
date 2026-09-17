@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SysMon · Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;600;800&display=swap');
+
+:root {
+  --bg:       #080c10;
+  --surface:  #0d1318;
+  --border:   #1a2530;
+  --accent:   #00e5ff;
+  --accent2:  #ff3e6c;
+  --accent3:  #a3ff57;
+  --warn:     #ffb830;
+  --text:     #c8d8e8;
+  --dim:      #4a6070;
+  --online:   #a3ff57;
+  --offline:  #ff3e6c;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-ui:   'Syne', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── scanline overlay ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0,229,255,.018) 3px,
+    rgba(0,229,255,.018) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── header ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, #0a1520 0%, #080c10 100%);
+  position: sticky; top: 0; z-index: 100;
+}
+
+.logo {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.logo span { color: var(--accent2); }
+
+#clock {
+  font-family: var(--font-mono);
+  font-size: .85rem;
+  color: var(--dim);
+}
+
+/* ── layout ── */
+.layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: calc(100vh - 53px);
+}
+
+/* ── sidebar ── */
+aside {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px 0;
+}
+
+.sidebar-title {
+  font-size: .65rem;
+  font-weight: 600;
+  letter-spacing: .18em;
+  color: var(--dim);
+  text-transform: uppercase;
+  padding: 0 16px 10px;
+}
+
+.host-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all .15s;
+  font-size: .88rem;
+}
+.host-item:hover  { background: rgba(0,229,255,.06); }
+.host-item.active {
+  border-left-color: var(--accent);
+  background: rgba(0,229,255,.08);
+  color: var(--accent);
+}
+
+.host-delete-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--dim); font-size: .85rem; padding: 4px 6px;
+  opacity: 0; transition: opacity .15s, color .15s;
+  flex-shrink: 0;
+}
+.host-item:hover .host-delete-btn { opacity: 1; }
+.host-delete-btn:hover { color: var(--accent2); }
+
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot.online  { background: var(--online);  box-shadow: 0 0 6px var(--online); }
+.dot.offline { background: var(--offline); }
+
+.host-meta {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  color: var(--dim);
+  margin-top: 1px;
+}
+
+.refresh-btn {
+  margin: 12px 16px 0;
+  width: calc(100% - 32px);
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  font-family: var(--font-ui);
+  font-size: .75rem;
+  letter-spacing: .1em;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all .15s;
+}
+.refresh-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0,229,255,.05);
+}
+
+/* ── main content ── */
+main {
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── welcome screen ── */
+#welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: var(--dim);
+  text-align: center;
+}
+#welcome h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--border);
+  letter-spacing: .1em;
+}
+#welcome p { font-size: .85rem; }
+
+/* ── host banner ── */
+.host-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.host-banner h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+}
+.status-badge {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  padding: 3px 10px;
+  border-radius: 2px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.status-badge.online  { background: rgba(163,255,87,.15);  color: var(--online);  border: 1px solid var(--online); }
+.status-badge.offline { background: rgba(255,62,108,.15); color: var(--offline); border: 1px solid var(--offline); }
+
+.last-seen {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  color: var(--dim);
+}
+
+/* ── stat pills ── */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.stat-card.cpu::before   { background: var(--accent); }
+.stat-card.ram::before   { background: var(--accent2); }
+.stat-card.disk::before  { background: var(--accent3); }
+.stat-card.net::before   { background: var(--warn); }
+
+.stat-label {
+  font-size: .65rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+.stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.stat-card.cpu   .stat-value { color: var(--accent); }
+.stat-card.ram   .stat-value { color: var(--accent2); }
+.stat-card.disk  .stat-value { color: var(--accent3); }
+.stat-card.net   .stat-value { color: var(--warn); font-size: 1.3rem; }
+
+.stat-sub {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  color: var(--dim);
+  margin-top: 4px;
+}
+
+/* ── charts ── */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 18px;
+}
+
+.panel-title {
+  font-size: .65rem;
+  font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px; height: 12px;
+}
+.panel.cpu-panel   .panel-title::before { background: var(--accent); }
+.panel.ram-panel   .panel-title::before { background: var(--accent2); }
+.panel.net-panel   .panel-title::before { background: var(--warn); }
+.panel.disk-panel  .panel-title::before { background: var(--accent3); }
+
+.chart-wrap {
+  height: 160px;
+  position: relative;
+}
+
+/* ── services ── */
+.services-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.svc-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  background: rgba(255,255,255,.02);
+}
+.svc-pill .dot { width: 7px; height: 7px; }
+.svc-pill.active   .dot { background: var(--online);  box-shadow: 0 0 5px var(--online); }
+.svc-pill.inactive .dot { background: var(--offline); }
+.svc-pill.unknown  .dot { background: var(--dim); }
+.svc-pill.active   { border-color: rgba(163,255,87,.25); }
+.svc-pill.inactive { border-color: rgba(255,62,108,.25); }
+
+/* ── disk bars ── */
+.disk-list { display: flex; flex-direction: column; gap: 10px; }
+
+.disk-entry {}
+.disk-header {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+.disk-bar-bg {
+  height: 6px;
+  background: var(--border);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.disk-bar-fill {
+  height: 100%;
+  border-radius: 1px;
+  background: var(--accent3);
+  transition: width .5s ease;
+}
+.disk-bar-fill.warn   { background: var(--warn); }
+.disk-bar-fill.danger { background: var(--accent2); }
+
+/* ── log feed ── */
+#log-feed {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 18px;
+}
+.log-table-wrap {
+  max-height: 280px;
+  overflow-y: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: .75rem;
+}
+thead th {
+  text-align: left;
+  padding: 0 10px 8px;
+  color: var(--dim);
+  letter-spacing: .1em;
+  font-size: .65rem;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+tbody tr { border-bottom: 1px solid rgba(26,37,48,.6); transition: background .1s; }
+tbody tr:hover { background: rgba(0,229,255,.03); }
+tbody td { padding: 6px 10px; vertical-align: top; }
+.log-ts  { color: var(--dim); white-space: nowrap; width: 160px; }
+.log-src { color: var(--warn); white-space: nowrap; width: 120px; }
+.log-msg { color: var(--text); word-break: break-all; }
+
+/* ── time range tabs ── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+.tab {
+  padding: 5px 14px;
+  font-size: .7rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--dim);
+  font-family: var(--font-ui);
+  transition: all .15s;
+}
+.tab:hover  { border-color: var(--accent); color: var(--accent); }
+.tab.active { background: rgba(0,229,255,.1); border-color: var(--accent); color: var(--accent); }
+
+/* ── tags ── */
+.tag {
+  display: inline-block; padding: 1px 8px; border-radius: 2px;
+  font-family: var(--font-mono); font-size: .65rem; letter-spacing: .08em;
+  border: 1px solid; margin: 0 2px;
+}
+.tag.prod   { color: #ff3e6c; border-color: rgba(255,62,108,.4);  background: rgba(255,62,108,.08); }
+.tag.test   { color: #ffb830; border-color: rgba(255,184,48,.4);  background: rgba(255,184,48,.08); }
+.tag.db     { color: #a3ff57; border-color: rgba(163,255,87,.4);  background: rgba(163,255,87,.08); }
+.tag.dev    { color: #00e5ff; border-color: rgba(0,229,255,.4);   background: rgba(0,229,255,.08); }
+.tag.custom { color: var(--dim); border-color: var(--border);     background: transparent; }
+
+/* ── simulation panel ── */
+.sim-panel {
+  background: var(--surface);
+  border: 1px solid rgba(163,255,87,.15);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sim-label {
+  font-family: var(--font-mono); font-size: .65rem; letter-spacing: .15em;
+  color: var(--accent3); text-transform: uppercase; flex-shrink: 0;
+}
+.sim-btn {
+  padding: 6px 16px; font-family: var(--font-mono); font-size: .72rem;
+  letter-spacing: .08em; cursor: pointer; border: 1px solid var(--border);
+  background: transparent; color: var(--dim); transition: all .2s;
+}
+.sim-btn:hover   { border-color: var(--accent3); color: var(--accent3); background: rgba(163,255,87,.06); }
+.sim-btn.running { border-color: var(--accent3); color: var(--accent3); background: rgba(163,255,87,.1); animation: sim-pulse 1.5s infinite; }
+.sim-btn.danger:hover   { border-color: var(--accent2); color: var(--accent2); background: rgba(255,62,108,.06); }
+.sim-btn.danger.running { border-color: var(--accent2); color: var(--accent2); background: rgba(255,62,108,.1); }
+.sim-stop {
+  padding: 6px 14px; font-family: var(--font-mono); font-size: .72rem;
+  letter-spacing: .08em; cursor: pointer; border: 1px solid var(--border);
+  background: transparent; color: var(--dim); transition: all .15s; margin-left: auto;
+}
+.sim-stop:hover { border-color: var(--accent2); color: var(--accent2); }
+@keyframes sim-pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+
+/* ── network interface select ── */
+#iface-select option { background: var(--surface); color: var(--text); }
+#iface-select:hover  { color: var(--accent); }
+
+.monitoring-badge {
+  font-family: var(--font-mono); font-size: .65rem; padding: 2px 8px;
+  border-radius: 2px; border: 1px solid; letter-spacing: .08em; cursor: pointer;
+  transition: all .15s; text-transform: uppercase;
+}
+.monitoring-badge.enabled  { color: var(--accent3); border-color: rgba(163,255,87,.4); background: rgba(163,255,87,.08); }
+.monitoring-badge.disabled { color: var(--dim);     border-color: var(--border);       background: transparent; }
+
+/* ── host config panel ── */
+.host-config-panel { background: var(--surface); border: 1px solid var(--border); padding: 18px; }
+.config-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.config-row:last-child { margin-bottom: 0; }
+.tag-input {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--font-mono); font-size: .8rem; padding: 5px 10px;
+  outline: none; width: 260px; transition: border-color .15s;
+}
+.tag-input:focus { border-color: var(--accent); }
+
+/* alert feed */
+.alert-feed { background: var(--surface); border: 1px solid var(--border); padding: 18px; }
+.alert-filters { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-btn {
+  padding: 3px 12px; font-family: var(--font-mono); font-size: .65rem;
+  letter-spacing: .1em; text-transform: uppercase; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--dim); transition: all .15s;
+}
+.filter-btn:hover  { border-color: var(--accent); color: var(--accent); }
+.filter-btn.active { background: rgba(0,229,255,.1); border-color: var(--accent); color: var(--accent); }
+.alert-row {
+  display: grid; grid-template-columns: 76px 88px 88px 1fr auto;
+  align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid rgba(26,37,48,.6);
+  font-family: var(--font-mono); font-size: .74rem;
+}
+.alert-row:last-child { border-bottom: none; }
+.alert-row.status-resolved     { opacity: .5; }
+.alert-row.status-acknowledged { opacity: .65; }
+.sev-badge, .stat-badge {
+  padding: 2px 7px; border-radius: 2px; font-size: .62rem;
+  letter-spacing: .08em; text-transform: uppercase; text-align: center; border: 1px solid;
+}
+.sev-badge.critical { color: #ff3e6c; border-color: rgba(255,62,108,.5); background: rgba(255,62,108,.1); }
+.sev-badge.warning  { color: #ffb830; border-color: rgba(255,184,48,.5); background: rgba(255,184,48,.1); }
+.sev-badge.info     { color: #00e5ff; border-color: rgba(0,229,255,.5);  background: rgba(0,229,255,.1); }
+.stat-badge.active       { color: #ff3e6c; border-color: rgba(255,62,108,.4); background: transparent; }
+.stat-badge.resolved     { color: #a3ff57; border-color: rgba(163,255,87,.4); background: transparent; }
+.stat-badge.acknowledged { color: #ffb830; border-color: rgba(255,184,48,.4); background: transparent; }
+.alert-subject { color: var(--text); line-height: 1.4; }
+.alert-ack-btn {
+  padding: 2px 10px; font-family: var(--font-mono); font-size: .62rem;
+  letter-spacing: .08em; cursor: pointer; border: 1px solid var(--border);
+  background: transparent; color: var(--dim); transition: all .15s; white-space: nowrap;
+}
+.alert-ack-btn:hover { border-color: var(--warn); color: var(--warn); background: rgba(255,184,48,.08); }
+.no-alerts { color: var(--dim); font-size: .8rem; text-align: center; padding: 20px; }
+
+/* ── threshold editor ── */
+.threshold-panel { background: var(--surface); border: 1px solid var(--border); padding: 18px; }
+.threshold-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.threshold-label { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); width: 60px; }
+.threshold-input {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--font-mono); font-size: .85rem; padding: 5px 10px; width: 80px;
+  outline: none; transition: border-color .15s;
+}
+.threshold-input:focus { border-color: var(--accent); }
+.threshold-unit { font-family: var(--font-mono); font-size: .75rem; color: var(--dim); }
+.save-btn {
+  padding: 6px 18px; background: rgba(0,229,255,.1); border: 1px solid var(--accent);
+  color: var(--accent); font-family: var(--font-ui); font-size: .72rem;
+  letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: all .15s;
+}
+.save-btn:hover { background: rgba(0,229,255,.2); }
+.save-btn.saved { border-color: var(--accent3); color: var(--accent3); background: rgba(163,255,87,.1); }
+
+#alert-count-badge {
+  background: var(--accent2); color: #fff; border-radius: 10px;
+  font-size: .65rem; padding: 2px 7px; margin-left: 8px;
+  font-family: var(--font-mono); display: none;
+}
+
+/* scrollbar */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── loader ── */
+.loader {
+  display: flex; align-items: center; justify-content: center;
+  height: 200px; color: var(--dim);
+  font-family: var(--font-mono); font-size: .8rem;
+  letter-spacing: .1em;
+}
+
+/* ── anim ── */
+@keyframes fade-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+.fade-in { animation: fade-in .3s ease forwards; }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.pulse { animation: pulse 2s infinite; }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sys<span>Mon</span> &nbsp;·&nbsp; Agent Dashboard<span id="alert-count-badge">0</span></div>
+  <div style="display:flex;align-items:center;gap:20px">
+    <span id="ws-indicator" style="font-family:var(--font-mono);font-size:.65rem;color:var(--dim);letter-spacing:.1em;cursor:default" title="WebSocket: connecting…">⬤ LIVE</span>
+    <a href="/admin" style="font-family:var(--font-mono);font-size:.75rem;color:var(--dim);text-decoration:none;letter-spacing:.1em;text-transform:uppercase;transition:color .15s" onmouseover="this.style.color='var(--warn)'" onmouseout="this.style.color='var(--dim)'">👤 Admin</a>
+    <a href="/settings" style="font-family:var(--font-mono);font-size:.75rem;color:var(--dim);text-decoration:none;letter-spacing:.1em;text-transform:uppercase;transition:color .15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--dim)'">⚙ Settings</a>
+    <a href="#" onclick="logout()" style="font-family:var(--font-mono);font-size:.75rem;color:var(--dim);text-decoration:none;letter-spacing:.1em;text-transform:uppercase;transition:color .15s" onmouseover="this.style.color='var(--accent2)'" onmouseout="this.style.color='var(--dim)'">⏻ Logout</a>
+    <div id="clock" class="pulse"></div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside>
+    <div class="sidebar-title">Hosts</div>
+    <div id="host-list"><div style="padding:12px 16px;font-size:.8rem;color:var(--dim)">Loading…</div></div>
+    <button class="refresh-btn" onclick="loadHosts()">↺ Refresh</button>
+  </aside>
+
+  <!-- Main -->
+  <main id="main-content">
+    <div id="welcome">
+      <h2>◈ SELECT A HOST</h2>
+      <p>Choose a monitored host from the sidebar to view its metrics.</p>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let currentHost = null;
+let currentHours = 3;
+let charts = {};
+let autoRefreshTimer = null;
+
+// ── CSRF helper ────────────────────────────────────────────────────────────────
+async function _getCsrf() {
+  const res = await fetch('/api/csrf-token');
+  const data = await res.json();
+  return data.csrf_token;
+}
+
+// ── Clock ────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toISOString().replace('T',' ').substring(0,19) + ' UTC';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Hosts sidebar ─────────────────────────────────────────────────────────────
+async function loadHosts() {
+  const res = await fetch('/api/hosts').catch(() => null);
+  if (!res) {
+    document.getElementById('host-list').innerHTML =
+      '<div style="padding:12px 16px;font-size:.8rem;color:var(--accent2)">⚠ Cannot reach server.</div>';
+    return;
+  }
+  if (res.status === 401 || res.status === 403) {
+    window.location.replace('/login'); return;
+  }
+  if (!res.ok) {
+    document.getElementById('host-list').innerHTML =
+      `<div style="padding:12px 16px;font-size:.8rem;color:var(--accent2)">⚠ Error ${res.status}</div>`;
+    return;
+  }
+  const hosts = await res.json();
+  const list = document.getElementById('host-list');
+  list.innerHTML = '';
+  if (!hosts.length) {
+    list.innerHTML = '<div style="padding:12px 16px;font-size:.8rem;color:var(--dim)">No agents yet.</div>';
+    return;
+  }
+  hosts.forEach(h => {
+    const div = document.createElement('div');
+    div.className = 'host-item' + (h.hostname === currentHost ? ' active' : '');
+    div.dataset.hostname = h.hostname;
+    const ago = timeSince(h.last_seen);
+    const tagsHtml = h.tags.map(t => `<span class="tag ${['prod','test','db','dev'].includes(t)?t:'custom'}">${t}</span>`).join('');
+    const deleteBtnHtml = isSuperuser
+      ? `<button class="host-delete-btn" title="Delete host" onclick="event.stopPropagation(); confirmDeleteHost('${h.hostname}')">✕</button>`
+      : '';
+    div.innerHTML = `
+      <div class="dot ${h.online ? 'online' : 'offline'}"></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span>${h.hostname}</span>
+          ${!h.monitoring ? '<span style="font-size:.6rem;color:var(--dim);font-family:var(--font-mono)">[paused]</span>' : ''}
+        </div>
+        <div class="host-meta">${ago}</div>
+        ${tagsHtml ? `<div style="margin-top:3px">${tagsHtml}</div>` : ''}
+        <a href="/host/${h.hostname}" onclick="event.stopPropagation()"
+           style="font-family:var(--font-mono);font-size:.62rem;color:var(--dim);text-decoration:none;letter-spacing:.08em;transition:color .15s;margin-top:3px;display:inline-block"
+           onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--dim)'">
+          → detail page
+        </a>
+      </div>
+      ${deleteBtnHtml}`;
+    div.onclick = () => selectHost(h.hostname);
+    list.appendChild(div);
+  });
+}
+
+// ── Delete host ────────────────────────────────────────────────────────────────
+function confirmDeleteHost(hostname) {
+  if (!confirm(`Permanently delete "${hostname}" and all its metrics, logs, and alerts?\n\nThis cannot be undone. If its agent is still running, it will reappear on the next check-in.`)) return;
+  doDeleteHost(hostname);
+}
+
+async function doDeleteHost(hostname) {
+  const csrf = await _getCsrf();
+  const res = await fetch(`/api/hosts/${encodeURIComponent(hostname)}`, {
+    method: 'DELETE',
+    headers: { 'X-CSRF-Token': csrf },
+  });
+  if (res.ok) {
+    if (currentHost === hostname) {
+      currentHost = null;
+      clearInterval(autoRefreshTimer);
+      document.getElementById('main-content').innerHTML =
+        '<div style="padding:40px;text-align:center;color:var(--dim);font-family:var(--font-mono)">Select a host from the sidebar.</div>';
+    }
+    await loadHosts();
+  } else {
+    const data = await res.json().catch(() => ({}));
+    alert(data.detail || `Failed to delete ${hostname}.`);
+  }
+}
+
+// ── Select host ───────────────────────────────────────────────────────────────
+async function selectHost(hostname) {
+  currentHost = hostname;
+  document.querySelectorAll('.host-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.hostname === hostname);
+  });
+  clearInterval(autoRefreshTimer);
+  await renderDashboard(hostname, currentHours);
+  autoRefreshTimer = setInterval(() => renderDashboard(hostname, currentHours), 30000);
+}
+
+// ── Full dashboard render ─────────────────────────────────────────────────────
+async function renderDashboard(hostname, hours) {
+  const main = document.getElementById('main-content');
+  if (!main.querySelector('#dashboard')) {
+    main.innerHTML = '<div class="loader">Loading…</div>';
+  }
+
+  const [hostsRes, metricsRes, logsRes, alertsRes, threshRes, hcfgRes] = await Promise.all([
+    fetch('/api/hosts'),
+    fetch(`/api/metrics/${hostname}?hours=${hours}`),
+    fetch(`/api/logs/${hostname}?limit=150`),
+    fetch(`/api/alerts/${hostname}?limit=50`),
+    fetch(`/api/thresholds/${hostname}`),
+    fetch(`/api/host-config/${hostname}`),
+  ]);
+
+  const hosts      = await hostsRes.json();
+  const metrics    = await metricsRes.json();
+  const logs       = await logsRes.json();
+  const alerts     = await alertsRes.json();
+  const thresholds = await threshRes.json();
+  const hcfg       = await hcfgRes.json();
+
+  const hostInfo = hosts.find(h => h.hostname === hostname) || { online: false, last_seen: 0 };
+  const latest   = metrics.length ? metrics[metrics.length - 1] : null;
+
+  main.innerHTML = '';
+  main.classList.add('fade-in');
+
+  // ── Time tabs
+  const tabsDiv = document.createElement('div');
+  tabsDiv.className = 'tabs';
+  [1, 3, 6, 24].forEach(h => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (h === hours ? ' active' : '');
+    btn.textContent = h < 24 ? `${h}h` : '24h';
+    btn.onclick = () => { currentHours = h; renderDashboard(hostname, h); };
+    tabsDiv.appendChild(btn);
+  });
+  main.appendChild(tabsDiv);
+
+  // ── Host banner
+  const banner = document.createElement('div');
+  banner.className = 'host-banner';
+  const tagsHtml = hcfg.tags.map(t =>
+    `<span class="tag ${['prod','test','db','dev'].includes(t)?t:'custom'}">${t}</span>`
+  ).join('');
+  banner.innerHTML = `
+    <div class="dot ${hostInfo.online ? 'online' : 'offline'}" style="width:10px;height:10px"></div>
+    <h1>${hostname}</h1>
+    <div class="status-badge ${hostInfo.online ? 'online' : 'offline'}">${hostInfo.online ? 'online' : 'offline'}</div>
+    ${tagsHtml}
+    <span class="monitoring-badge ${hcfg.monitoring ? 'enabled' : 'disabled'}"
+      onclick="toggleMonitoring('${hostname}', ${hcfg.monitoring})"
+      title="Click to ${hcfg.monitoring ? 'pause' : 'resume'} monitoring">
+      ${hcfg.monitoring ? '● Monitoring' : '⏸ Paused'}
+    </span>
+    <div class="last-seen">Last seen: ${timeSince(hostInfo.last_seen)}</div>`;
+  main.appendChild(banner);
+
+  // ── Simulation panel
+  const simPanel = document.createElement('div');
+  simPanel.className = 'sim-panel';
+  simPanel.innerHTML = `
+    <span class="sim-label">⬡ Demo</span>
+    <button class="sim-btn" id="sim-normal"       onclick="runScenario('${hostname}','normal',this)">Normal</button>
+    <button class="sim-btn" id="sim-high_cpu"     onclick="runScenario('${hostname}','high_cpu',this)">High CPU</button>
+    <button class="sim-btn" id="sim-high_ram"     onclick="runScenario('${hostname}','high_ram',this)">High RAM</button>
+    <button class="sim-btn" id="sim-service_down" onclick="runScenario('${hostname}','service_down',this)">Svc Down</button>
+    <button class="sim-btn danger" id="sim-critical" onclick="runScenario('${hostname}','critical',this)">Crisis</button>
+    <button class="sim-btn" onclick="injectAlert('${hostname}')" style="border-color:rgba(255,184,48,.3);color:var(--warn)">+ Alert</button>
+    <button class="sim-stop" onclick="stopSim('${hostname}')">■ Stop</button>`;
+  main.appendChild(simPanel);
+
+  // ── Stat pills
+  const statRow = document.createElement('div');
+  statRow.className = 'stat-row';
+  const cpu   = latest?.cpu_percent ?? null;
+  const ram   = latest?.ram_percent ?? null;
+  const disk0 = latest?.disks?.[0];
+
+  // Build list of available interfaces from latest payload
+  const ifaces = latest?.network ?? [];
+  const savedIface = localStorage.getItem(`sysmon_iface_${hostname}`);
+  const selIface = ifaces.find(n => n.interface === savedIface) || ifaces[0] || null;
+
+  // Build dropdown options
+  const ifaceOptions = ifaces.map(n =>
+    `<option value="${n.interface}" ${n.interface === selIface?.interface ? 'selected' : ''}>${n.interface}</option>`
+  ).join('');
+
+  statRow.innerHTML = `
+    <div class="stat-card cpu">
+      <div class="stat-label">CPU Usage</div>
+      <div class="stat-value">${cpu !== null ? cpu.toFixed(1) : '--'}<span style="font-size:.9rem">%</span></div>
+      <div class="stat-sub">System-wide</div>
+    </div>
+    <div class="stat-card ram">
+      <div class="stat-label">RAM Usage</div>
+      <div class="stat-value">${ram !== null ? ram.toFixed(1) : '--'}<span style="font-size:.9rem">%</span></div>
+      <div class="stat-sub">Memory</div>
+    </div>
+    <div class="stat-card disk">
+      <div class="stat-label">Primary Disk</div>
+      <div class="stat-value">${disk0 ? disk0.percent.toFixed(1) : '--'}<span style="font-size:.9rem">%</span></div>
+      <div class="stat-sub">${disk0 ? disk0.path : 'N/A'}</div>
+    </div>
+    <div class="stat-card net" id="net-stat-card">
+      <div class="stat-label" style="display:flex;align-items:center;gap:6px">
+        Network
+        <select id="iface-select" onchange="onIfaceChange('${hostname}', this.value)"
+          style="background:transparent;border:none;color:var(--warn);font-family:var(--font-mono);
+                 font-size:.65rem;cursor:pointer;outline:none;padding:0;max-width:80px">
+          ${ifaceOptions || '<option>--</option>'}
+        </select>
+      </div>
+      <div class="stat-value" id="net-rx-tx">
+        ↓${selIface ? fmtBps(selIface.rx_bps) : '--'}
+        ↑${selIface ? fmtBps(selIface.tx_bps) : '--'}
+      </div>
+      <div class="stat-sub">RX / TX</div>
+    </div>`;
+  main.appendChild(statRow);
+
+  // ── Charts row
+  const chartsRow = document.createElement('div');
+  chartsRow.className = 'charts-row';
+
+  const timestamps = metrics.map(m => fmtTs(m.timestamp));
+
+  chartsRow.appendChild(makeChartPanel('cpu-panel', 'CPU Usage %', 'cpu-chart'));
+  chartsRow.appendChild(makeChartPanel('ram-panel', 'RAM Usage %', 'ram-chart'));
+  chartsRow.appendChild(makeChartPanel('net-panel', 'Network (Bps)', 'net-chart'));
+  chartsRow.appendChild(makeDisksPanel(latest?.disks));
+  main.appendChild(chartsRow);
+
+  // Draw charts after DOM insert
+  requestAnimationFrame(() => {
+    drawLineChart('cpu-chart', timestamps,
+      [{ label:'CPU %', data: metrics.map(m=>m.cpu_percent), color: '#00e5ff' }]);
+    drawLineChart('ram-chart', timestamps,
+      [{ label:'RAM %', data: metrics.map(m=>m.ram_percent), color: '#ff3e6c' }]);
+
+    const ifaces = [...new Set(metrics.flatMap(m => m.network.map(n=>n.interface)))];
+    const netDatasets = ifaces.flatMap((iface, i) => {
+      const colors = ['#ffb830','#a3ff57','#00e5ff','#ff3e6c'];
+      return [
+        { label:`${iface} RX`, data: metrics.map(m=>m.network.find(n=>n.interface===iface)?.rx_bps??0), color: colors[i % colors.length] },
+        { label:`${iface} TX`, data: metrics.map(m=>m.network.find(n=>n.interface===iface)?.tx_bps??0), color: colors[i % colors.length], dashed: true }
+      ];
+    });
+    drawLineChart('net-chart', timestamps, netDatasets);
+  });
+
+  // ── Services
+  if (latest?.services?.length) {
+    const svcPanel = document.createElement('div');
+    svcPanel.className = 'panel';
+    svcPanel.innerHTML = `<div class="panel-title">Services</div><div class="services-grid" id="services-grid"></div>`;
+    main.appendChild(svcPanel);
+    const grid = svcPanel.querySelector('#services-grid');
+    latest.services.forEach(s => {
+      const pill = document.createElement('div');
+      const cls = s.status === 'active' ? 'active' : s.status === 'inactive' ? 'inactive' : 'unknown';
+      pill.className = `svc-pill ${cls}`;
+      pill.innerHTML = `<div class="dot"></div>${s.name} <span style="opacity:.5;margin-left:4px">${s.status}</span>`;
+      grid.appendChild(pill);
+    });
+  }
+
+  // ── Host config panel (tags + thresholds)
+  const hcfgPanel = document.createElement('div');
+  hcfgPanel.className = 'host-config-panel';
+  hcfgPanel.innerHTML = `
+    <div class="panel-title" style="margin-bottom:14px">
+      <span style="display:inline-block;width:3px;height:12px;background:var(--accent);margin-right:8px"></span>
+      Host Configuration — ${hostname}
+    </div>
+
+    <div class="config-row">
+      <span style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);width:80px">Tags</span>
+      <input class="tag-input" id="hcfg-tags" placeholder="prod, db, nginx..."
+             value="${hcfg.tags.join(', ')}">
+      <span style="font-family:var(--font-mono);font-size:.7rem;color:var(--dim)">comma-separated</span>
+    </div>
+
+    <div class="config-row">
+      <span style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);width:80px">CPU Alert</span>
+      <input class="threshold-input" id="hcfg-cpu" type="number" min="1" max="100"
+             value="${hcfg.cpu_threshold}">
+      <span class="threshold-unit">%</span>
+    </div>
+
+    <div class="config-row">
+      <span style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);width:80px">RAM Alert</span>
+      <input class="threshold-input" id="hcfg-ram" type="number" min="1" max="100"
+             value="${hcfg.ram_threshold}">
+      <span class="threshold-unit">%</span>
+    </div>
+
+    <div class="config-row" style="margin-top:6px">
+      <button class="save-btn" id="hcfg-save-btn" onclick="saveHostConfig('${hostname}')">Save</button>
+      <span style="font-family:var(--font-mono);font-size:.7rem;color:var(--dim)">
+        Global defaults: CPU ${thresholds.cpu_threshold}% · RAM ${thresholds.ram_threshold}%
+      </span>
+    </div>`;
+  main.appendChild(hcfgPanel);
+
+  // ── Alert feed
+  const alertPanel = document.createElement('div');
+  alertPanel.className = 'alert-feed';
+  const activeCount = alerts.filter(a => a.status === 'active').length;
+  alertPanel.innerHTML = `
+    <div class="panel-title" style="margin-bottom:10px;display:flex;align-items:center;gap:8px">
+      <span style="display:inline-block;width:3px;height:12px;background:var(--accent2)"></span>
+      Alert History
+      ${activeCount ? `<span style="font-family:var(--font-mono);font-size:.7rem;color:var(--accent2)">${activeCount} active</span>` : ''}
+      <button onclick="clearAlerts('${hostname}')" style="margin-left:auto;padding:3px 12px;background:transparent;border:1px solid var(--border);color:var(--dim);font-family:var(--font-ui);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .15s"
+        onmouseover="this.style.borderColor='var(--accent2)';this.style.color='var(--accent2)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--dim)'">
+        Clear All
+      </button>
+    </div>
+    <div class="alert-filters">
+      <button class="filter-btn active" onclick="filterAlerts(this,'all')">All</button>
+      <button class="filter-btn" onclick="filterAlerts(this,'active')">Active</button>
+      <button class="filter-btn" onclick="filterAlerts(this,'acknowledged')">Acknowledged</button>
+      <button class="filter-btn" onclick="filterAlerts(this,'resolved')">Resolved</button>
+    </div>
+    <div id="alert-list"></div>`;
+  main.appendChild(alertPanel);
+
+  function renderAlertRows(filter) {
+    const alertList = alertPanel.querySelector('#alert-list');
+    const filtered = filter === 'all' ? alerts : alerts.filter(a => a.status === filter);
+    if (!filtered.length) {
+      alertList.innerHTML = `<div class="no-alerts">✔ No ${filter === 'all' ? '' : filter + ' '}alerts.</div>`;
+      return;
+    }
+    alertList.innerHTML = '';
+    filtered.forEach(a => {
+      const row = document.createElement('div');
+      row.className = `alert-row status-${a.status}`;
+      const ts = new Date(a.fired_at*1000).toISOString().replace('T',' ').slice(0,19);
+      const ackedInfo = a.acked_by ? ` · acked by ${escHtml(a.acked_by)}` : '';
+      const resolvedInfo = a.resolved_at
+        ? ` · resolved ${new Date(a.resolved_at*1000).toISOString().replace('T',' ').slice(0,19)}`
+        : '';
+      row.innerHTML = `
+        <div class="sev-badge ${a.severity}">${a.severity}</div>
+        <div class="stat-badge ${a.status}">${a.status}</div>
+        <div style="color:var(--dim);font-size:.7rem">${ts}</div>
+        <div class="alert-subject">
+          ${escHtml(a.subject)}
+          <div style="color:var(--dim);font-size:.68rem;margin-top:2px">${escHtml(ackedInfo + resolvedInfo)}</div>
+        </div>
+        ${a.status === 'active'
+          ? `<button class="alert-ack-btn" onclick="ackAlert(${a.id}, this)">Acknowledge</button>`
+          : '<span></span>'}`;
+      alertList.appendChild(row);
+    });
+  }
+
+  renderAlertRows('all');
+
+  alertPanel._renderAlertRows = renderAlertRows;
+
+  // ── Log feed
+  const logPanel = document.createElement('div');
+  logPanel.id = 'log-feed';
+  logPanel.innerHTML = `
+    <div class="panel-title" style="margin-bottom:14px">Log Events</div>
+    <div class="log-table-wrap">
+      <table>
+        <thead><tr><th>Timestamp</th><th>Source</th><th>Message</th></tr></thead>
+        <tbody id="log-tbody"></tbody>
+      </table>
+      ${!logs.length ? '<div style="padding:20px;text-align:center;color:var(--dim);font-size:.8rem">No log events.</div>' : ''}
+    </div>`;
+  main.appendChild(logPanel);
+
+  const tbody = logPanel.querySelector('#log-tbody');
+  logs.forEach(l => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="log-ts">${new Date(l.timestamp*1000).toISOString().replace('T',' ').slice(0,19)}</td>
+      <td class="log-src">${escHtml(l.source||'')}</td>
+      <td class="log-msg">${escHtml(l.message)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Chart helpers ──────────────────────────────────────────────────────────────
+function makeChartPanel(cls, title, canvasId) {
+  const div = document.createElement('div');
+  div.className = `panel ${cls}`;
+  div.innerHTML = `<div class="panel-title">${title}</div>
+    <div class="chart-wrap"><canvas id="${canvasId}"></canvas></div>`;
+  return div;
+}
+
+function makeDisksPanel(disks) {
+  const div = document.createElement('div');
+  div.className = 'panel disk-panel';
+  let inner = '<div class="panel-title">Disk Usage</div><div class="disk-list">';
+  if (!disks || !disks.length) {
+    inner += '<div style="color:var(--dim);font-size:.8rem">No disk data.</div>';
+  } else {
+    disks.forEach(d => {
+      const pct = d.percent.toFixed(1);
+      const cls = d.percent > 90 ? 'danger' : d.percent > 75 ? 'warn' : '';
+      inner += `
+        <div class="disk-entry">
+          <div class="disk-header"><span>${d.path}</span><span>${pct}%</span></div>
+          <div class="disk-bar-bg"><div class="disk-bar-fill ${cls}" style="width:${pct}%"></div></div>
+        </div>`;
+    });
+  }
+  inner += '</div>';
+  div.innerHTML = inner;
+  return div;
+}
+
+function drawLineChart(canvasId, labels, datasets) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const existing = Chart.getChart(canvas);
+  if (existing) existing.destroy();
+
+  const ds = datasets.map(d => ({
+    label: d.label,
+    data: d.data,
+    borderColor: d.color,
+    backgroundColor: d.color + '18',
+    borderWidth: 1.5,
+    pointRadius: 0,
+    fill: datasets.length === 1,
+    tension: 0.3,
+    borderDash: d.dashed ? [4,3] : undefined,
+  }));
+
+  new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: ds },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          ticks: { color:'#4a6070', font:{size:9}, maxTicksLimit:6, maxRotation:0 },
+          grid:  { color:'#1a2530' },
+        },
+        y: {
+          ticks: { color:'#4a6070', font:{size:9} },
+          grid:  { color:'#1a2530' },
+          min: 0,
+        }
+      },
+      plugins: {
+        legend: { labels:{ color:'#4a6070', font:{size:10}, boxWidth:10 } },
+        tooltip: {
+          backgroundColor:'#0d1318',
+          borderColor:'#1a2530',
+          borderWidth:1,
+          titleColor:'#00e5ff',
+          bodyColor:'#c8d8e8',
+        }
+      }
+    }
+  });
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────────
+function fmtTs(ts) {
+  const d = new Date(ts * 1000);
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+function timeSince(ts) {
+  const diff = Math.floor(Date.now()/1000) - ts;
+  if (diff < 60)  return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  return `${Math.floor(diff/3600)}h ago`;
+}
+
+function fmtBps(bps) {
+  if (bps >= 1e6) return (bps/1e6).toFixed(1)+'MB/s';
+  if (bps >= 1e3) return (bps/1e3).toFixed(1)+'KB/s';
+  return bps.toFixed(0)+'B/s';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Save thresholds ────────────────────────────────────────────────────────────
+// ── Simulation ────────────────────────────────────────────────────────────────
+let _simTimer   = null;
+let _simBtn     = null;
+let _simHost    = null;
+
+async function runScenario(hostname, scenario, btn) {
+  stopSim(hostname);
+  _simHost = hostname;
+  _simBtn  = btn;
+  btn.classList.add('running');
+
+  async function tick() {
+    const csrf = await _getCsrf();
+    await fetch(`/api/simulate/${hostname}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify({ scenario })
+    });
+    renderDashboard(hostname, currentHours);
+  }
+
+  await tick();
+  _simTimer = setInterval(tick, 8000);   // inject every 8s during demo
+}
+
+async function injectAlert(hostname) {
+  const scenarios = [
+    { alert_type: 'cpu',     severity: 'critical', subject: `[DEMO] ${hostname}: CPU at 97.3%` },
+    { alert_type: 'ram',     severity: 'warning',  subject: `[DEMO] ${hostname}: RAM at 91.0%` },
+    { alert_type: 'service', severity: 'critical', subject: `[DEMO] ${hostname}: service 'nginx' went DOWN` },
+  ];
+  const s = scenarios[Math.floor(Math.random() * scenarios.length)];
+  const csrf = await _getCsrf();
+  await fetch(`/api/simulate/${hostname}/alert`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+    body: JSON.stringify(s)
+  });
+  renderDashboard(hostname, currentHours);
+  updateAlertBadge();
+}
+
+function stopSim(hostname) {
+  if (_simTimer) { clearInterval(_simTimer); _simTimer = null; }
+  if (_simBtn)   { _simBtn.classList.remove('running'); _simBtn = null; }
+  document.querySelectorAll('.sim-btn').forEach(b => b.classList.remove('running'));
+}
+
+// ── Network interface selector ────────────────────────────────────────────────
+function onIfaceChange(hostname, ifaceName) {
+  // Save preference per host
+  localStorage.setItem(`sysmon_iface_${hostname}`, ifaceName);
+
+  // Update stat card immediately from the latest data already in DOM context
+  fetch(`/api/latest/${hostname}`).then(r => r.json()).then(data => {
+    const iface = (data.network || []).find(n => n.interface === ifaceName);
+    const el = document.getElementById('net-rx-tx');
+    if (el && iface) {
+      el.innerHTML = `↓${fmtBps(iface.rx_bps)} ↑${fmtBps(iface.tx_bps)}`;
+    }
+  }).catch(() => {});
+}
+
+// ── Alert filter tabs ─────────────────────────────────────────────────────────
+function filterAlerts(btn, filter) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const panel = document.querySelector('.alert-feed');
+  if (panel && panel._renderAlertRows) panel._renderAlertRows(filter);
+}
+
+// ── Acknowledge alert ─────────────────────────────────────────────────────────
+async function ackAlert(alertId, btn) {
+  btn.textContent = '…';
+  btn.disabled = true;
+  const res = await fetch(`/api/alerts/${alertId}/acknowledge`, { method: 'POST' });
+  if (res.ok) {
+    const row = btn.closest('.alert-row');
+    row.classList.remove('status-active');
+    row.classList.add('status-acknowledged');
+    row.querySelector('.stat-badge').className = 'stat-badge acknowledged';
+    row.querySelector('.stat-badge').textContent = 'acknowledged';
+    btn.remove();
+    updateAlertBadge();
+  } else {
+    btn.textContent = 'Acknowledge';
+    btn.disabled = false;
+  }
+}
+
+async function saveHostConfig(hostname) {
+  const cpu  = parseFloat(document.getElementById('hcfg-cpu').value);
+  const ram  = parseFloat(document.getElementById('hcfg-ram').value);
+  const tags = document.getElementById('hcfg-tags').value;
+  if (isNaN(cpu) || isNaN(ram) || cpu < 1 || ram < 1) {
+    alert('Thresholds must be between 1 and 100.'); return;
+  }
+  const btn = document.getElementById('hcfg-save-btn');
+  btn.textContent = 'Saving…';
+  const csrf = await _getCsrf();
+  const res = await fetch(`/api/host-config/${hostname}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+    body: JSON.stringify({ cpu_threshold: cpu, ram_threshold: ram, tags })
+  });
+  if (res.ok) {
+    btn.textContent = '✔ Saved';
+    btn.classList.add('saved');
+    setTimeout(() => { btn.textContent = 'Save'; btn.classList.remove('saved'); }, 2000);
+    loadHosts();
+  } else {
+    btn.textContent = '✘ Failed';
+    setTimeout(() => { btn.textContent = 'Save'; }, 2000);
+  }
+}
+
+async function toggleMonitoring(hostname, currentlyEnabled) {
+  const newState = !currentlyEnabled;
+  const label = newState ? 'Resume' : 'Pause';
+  if (!confirm(`${label} monitoring for ${hostname}?`)) return;
+  const csrf = await _getCsrf();
+  await fetch(`/api/host-config/${hostname}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+    body: JSON.stringify({ monitoring: newState })
+  });
+  renderDashboard(hostname, currentHours);
+  loadHosts();
+}
+
+// ── Global alert badge (header) ───────────────────────────────────────────────
+async function updateAlertBadge() {
+  const res = await fetch('/api/alerts?limit=200&status=active').catch(() => null);
+  if (!res || !res.ok) return;
+  const alerts = await res.json();
+  const badge = document.getElementById('alert-count-badge');
+  if (alerts.length > 0) {
+    badge.textContent = alerts.length;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ── Clear alert history ───────────────────────────────────────────────────────
+async function clearAlerts(hostname) {
+  if (!confirm(`Clear all alert history for ${hostname}?`)) return;
+  const csrf = await _getCsrf();
+  const res = await fetch(`/api/alerts/${hostname}`, {
+    method: 'DELETE',
+    headers: { 'X-CSRF-Token': csrf },
+  });
+  if (res.ok) {
+    renderDashboard(hostname, currentHours);
+  }
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/login';
+}
+
+// ── WebSocket real-time connection ───────────────────────────────────────────
+let ws = null;
+let wsReconnectTimer = null;
+let wsConnected = false;
+
+function wsConnect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+  ws.onopen = () => {
+    wsConnected = true;
+    clearTimeout(wsReconnectTimer);
+    // Update WS status indicator
+    const ind = document.getElementById('ws-indicator');
+    if (ind) { ind.style.color = 'var(--online)'; ind.title = 'Real-time connected'; }
+    console.log('📡 WebSocket connected');
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      handleWsMessage(msg);
+    } catch(e) { console.error('WS parse error:', e); }
+  };
+
+  ws.onclose = () => {
+    wsConnected = false;
+    const ind = document.getElementById('ws-indicator');
+    if (ind) { ind.style.color = 'var(--dim)'; ind.title = 'Reconnecting…'; }
+    // Reconnect with exponential backoff
+    wsReconnectTimer = setTimeout(wsConnect, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+function handleWsMessage(msg) {
+  if (msg.type === 'ping' || msg.type === 'connected') return;
+
+  if (msg.type === 'metric') {
+    // Update the host card in sidebar if this host is visible
+    updateHostCard(msg.hostname, msg);
+    // If this is the currently selected host, refresh its detail panel
+    if (msg.hostname === currentHost) {
+      refreshCurrentHostMetrics(msg);
+    }
+  }
+
+  if (msg.type === 'alert') {
+    // Flash the alert badge
+    showAlertToast(msg);
+    updateAlertBadge();
+    // If viewing this host, refresh its alert panel
+    if (msg.hostname === currentHost) {
+      loadAlerts(currentHost);
+    }
+  }
+
+  if (msg.type === 'host_deleted') {
+    if (msg.hostname === currentHost) {
+      currentHost = null;
+      clearInterval(autoRefreshTimer);
+      document.getElementById('main-content').innerHTML =
+        '<div style="padding:40px;text-align:center;color:var(--dim);font-family:var(--font-mono)">This host was deleted. Select another from the sidebar.</div>';
+    }
+    loadHosts();
+  }
+}
+
+function updateHostCard(hostname, metric) {
+  // Find the host card and update CPU/RAM live
+  const card = document.querySelector(`[data-hostname="${hostname}"]`);
+  if (!card) { loadHosts(); return; }  // new host — reload full list
+  const cpuEl = card.querySelector('.hc-cpu');
+  const ramEl = card.querySelector('.hc-ram');
+  if (cpuEl) cpuEl.textContent = metric.cpu_percent.toFixed(1) + '%';
+  if (ramEl) ramEl.textContent = metric.ram_percent.toFixed(1) + '%';
+}
+
+function refreshCurrentHostMetrics(metric) {
+  // Update the live stat cards in the main panel without a full reload
+  const cpuVal = document.getElementById('live-cpu');
+  const ramVal = document.getElementById('live-ram');
+  if (cpuVal) cpuVal.textContent = metric.cpu_percent.toFixed(1) + '%';
+  if (ramVal) ramVal.textContent = metric.ram_percent.toFixed(1) + '%';
+  // Soft-reload the host detail panel after a short delay
+  clearTimeout(window._hostRefreshTimer);
+  window._hostRefreshTimer = setTimeout(() => {
+    if (currentHost === metric.hostname) loadHostDetail(currentHost);
+  }, 2000);
+}
+
+function showAlertToast(alert) {
+  // Create a brief toast notification for new alerts
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position:fixed; top:20px; right:20px; z-index:9999;
+    background:#0d1318; border:1px solid var(--accent2);
+    padding:12px 18px; font-family:var(--font-mono); font-size:.75rem;
+    color:var(--accent2); max-width:320px;
+    animation: toast-in .3s ease;
+    box-shadow: 0 4px 20px rgba(255,62,108,.3);
+  `;
+  const style = document.createElement('style');
+  style.textContent = '@keyframes toast-in{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}';
+  document.head.appendChild(style);
+  const sev = alert.severity === 'critical' ? '🔴' : '🟡';
+  toast.innerHTML = `${sev} <strong>${alert.severity.toUpperCase()}</strong><br>${escHtml(alert.subject)}`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+let isSuperuser = false;
+
+async function checkSession() {
+  try {
+    const r = await fetch('/api/users/me');
+    if (r.status === 401 || r.status === 403) {
+      window.location.replace('/login');
+      return false;
+    }
+    if (r.ok) {
+      const me = await r.json();
+      isSuperuser = !!me.is_superuser;
+    }
+    return true;
+  } catch { return true; }
+}
+
+async function init() {
+  const ok = await checkSession();
+  if (!ok) return;
+
+  // Initial data load
+  loadHosts();
+  updateAlertBadge();
+
+  // Start WebSocket for real-time updates
+  wsConnect();
+
+  // Fallback polling — only fires if WebSocket is down
+  setInterval(() => {
+    if (!wsConnected) {
+      loadHosts();
+      updateAlertBadge();
+    }
+  }, 30000);
+
+  // Session keepalive check every 5 minutes
+  setInterval(async () => {
+    const r = await fetch('/api/users/me').catch(() => null);
+    if (r && (r.status === 401 || r.status === 403)) {
+      window.location.replace('/login');
+    }
+  }, 300000);
+}
+
+init();
+
+</script>
+</body>
+</html>

@@ -14,15 +14,16 @@ from app import config
 from app.agents import _lookup_key, verify_agent
 from app.ai_analysis import _run_ai_analysis
 from app.alerting import (_cpu_spike, _get_thresholds, _in_cooldown,
-                           _metric_history, _push_history, _ram_spike,
-                           _record_alert, _resolve_alert, _send_email,
-                           _send_webhook, check_alerts)
+                          _metric_history, _push_history, _ram_spike,
+                          _record_alert, _resolve_alert, _send_email,
+                          _send_webhook, check_alerts)
 from app.auth import current_active_user, require_session
-from app.db import Base, _hash, get_settings, init_db, purge_old_data, save_setting
+from app.db import (Base, _hash, get_settings, init_db, purge_old_data,
+                    save_setting)
 from app.main import app
-from app.security import (_CSRF_COOKIE, _CSRF_HEADER, _SSRFGuardRedirectHandler,
-                           _check_rate_limit, _rate_buckets,
-                           _validate_webhook_url, ensure_tls_cert)
+from app.security import (_CSRF_COOKIE, _CSRF_HEADER, _check_rate_limit,
+                          _rate_buckets, _SSRFGuardRedirectHandler,
+                          _validate_webhook_url, ensure_tls_cert)
 from app.websocket import _validate_ws_token, ws_manager
 
 # Re-exported for tests / ops tooling that reach for these directly.

@@ -13,6 +13,7 @@ from . import config
 from .db import _hash
 from .security import _check_rate_limit
 
+
 def _lookup_key(raw_key: str) -> sqlite3.Row | None:
     conn = sqlite3.connect(config.DB_PATH)
     conn.row_factory = sqlite3.Row

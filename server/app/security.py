@@ -47,14 +47,17 @@ def _check_rate_limit(key: str) -> None:
 def ensure_tls_cert() -> None:
     """Generate a self-signed TLS cert/key pair on first run if none exists."""
     if Path(config.TLS_CERT).exists() and Path(config.TLS_KEY).exists():
-        logger.info("TLS cert found: %s", config.TLS_CERT); return
+        logger.info("TLS cert found: %s", config.TLS_CERT)
+        return
     logger.info("Generating self-signed TLS certificate...")
     try:
+        import datetime
+        import ipaddress
+
         from cryptography import x509
-        from cryptography.x509.oid import NameOID
         from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
-        import datetime, ipaddress
+        from cryptography.x509.oid import NameOID
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u"sysmon-server")])
         cert = (
@@ -76,7 +79,7 @@ def ensure_tls_cert() -> None:
         Path(config.TLS_CERT).write_bytes(cert.public_bytes(serialization.Encoding.PEM))
         logger.info("Self-signed TLS cert generated (valid 10 years)")
     except ImportError:
-        logger.warning("cryptography package not installed — falling back to HTTP")
+        logger.warning("Cryptography package not installed — falling back to HTTP")
 
 # ── CSRF Protection (Double-Submit Cookie Pattern) ────────────────────────────
 _CSRF_COOKIE   = "sysmon_csrf"
@@ -191,7 +194,7 @@ def _audit(actor: str, action: str, target: str, detail: str = "") -> None:
 
 # ── SSRF Protection ──────────────────────────────────────────────────────────
 import ipaddress as _ipaddress
-import socket    as _socket
+import socket as _socket
 
 _BLOCKED_SCHEMES   = {"file", "ftp", "gopher", "dict", "smb", "ldap", "tftp"}
 _PRIVATE_NETWORKS  = [
@@ -223,8 +226,8 @@ def _validate_webhook_url(url: str) -> str:
     - Blocked hostnames (localhost, metadata.google.internal, etc.)
     - DNS rebinding: resolves the hostname and checks the resulting IP
     """
-    from urllib.parse import urlparse as _urlparse
     import socket as _sock
+    from urllib.parse import urlparse as _urlparse
 
     def _block(detail: str) -> None:
         """Audit the blocked SSRF attempt, then raise 400."""

@@ -1,1 +1,0 @@
-"""sysmon-server application package."""

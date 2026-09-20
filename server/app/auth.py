@@ -11,8 +11,12 @@ from enum import StrEnum
 from typing import AsyncGenerator
 
 from fastapi import Depends, HTTPException, Request
-from fastapi_users import BaseUserManager, FastAPIUsers, InvalidPasswordException, UUIDIDMixin
-from fastapi_users.authentication import AuthenticationBackend, CookieTransport, JWTStrategy
+from fastapi_users import (BaseUserManager, FastAPIUsers,
+                           InvalidPasswordException, UUIDIDMixin)
+from fastapi_users.authentication import (AuthenticationBackend,
+                                          CookieTransport, JWTStrategy)
+from jose import JWTError
+from jose import jwt as _jwt
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from . import config
@@ -128,7 +132,6 @@ async def require_session(request: Request) -> str:
             headers={"Location": "/login"}, detail="Not authenticated")
     try:
         # Decode JWT directly — same secret and algorithm as JWTStrategy
-        from jose import jwt as _jwt, JWTError
         # Decode without audience check — jose requires str but fastapi-users
         # stores audience as a list; we verify it manually below.
         payload = _jwt.decode(token, config.JWT_SECRET, algorithms=["HS256"],

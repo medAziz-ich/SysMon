@@ -28,35 +28,40 @@ from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import (Cookie, Depends, FastAPI, HTTPException, Request,
-                      Response, WebSocket, WebSocketDisconnect, status)
+                     Response, WebSocket, WebSocketDisconnect, status)
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_users import InvalidPasswordException
 from fastapi_users.password import PasswordHelper
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
 
 from . import config
 from .agents import verify_agent
 from .ai_analysis import _run_ai_analysis
 from .alerting import (_check_smart_alerts, _fire_alert, _get_host_config,
-                        _get_thresholds, _in_cooldown, _is_monitoring_enabled,
-                        _metric_history, _record_alert, _resolve_alert,
-                        _send_email_resend, _send_email_smtp, _ssrf_safe_post,
-                        check_alerts)
-from .auth import (SysmonUserManager, UserRole, auth_backend, current_active_user,
-                    fastapi_users_router, get_user_manager, init_fu_db,
-                    require_session)
-from .db import (Base, EmailProvider, User, _async_db_url, _hash, get_async_session,
-                  get_settings, get_user_db, init_db, purge_old_data,
-                  save_setting)
-from .schemas import AdminUserCreate  # noqa: F401  (used by admin_create_user below)
-from .schemas import *  # noqa: F401,F403  (request/response models used throughout the routes)
+                       _get_thresholds, _in_cooldown, _is_monitoring_enabled,
+                       _metric_history, _record_alert, _resolve_alert,
+                       _send_email_resend, _send_email_smtp, _ssrf_safe_post,
+                       check_alerts)
+from .auth import (SysmonUserManager, UserRole, auth_backend,
+                   current_active_user, fastapi_users_router, get_user_manager,
+                   init_fu_db, require_session)
+from .db import (Base, EmailProvider, User, _async_db_url, _hash,
+                 get_async_session, get_settings, get_user_db, init_db,
+                 purge_old_data, save_setting)
+from .schemas import (AcknowledgeResponse, AdminUserCreate, AgentKeyInfo,
+                      AgentRotateResponse, AlertResponse, AuditEntry,
+                      HostConfigResponse, HostConfigUpdate, HostSummary,
+                      LogEvent, MetricSample, RegisterRequest,
+                      RegisterResponse, RoleUpdate, SettingsUpdate,
+                      UserAdminInfo, UserCreate, UserRead, UserUpdate)
 from .security import (_CSRF_COOKIE, _CSRF_HEADER, _audit, _check_rate_limit,
-                        _generate_csrf_token, _require_csrf, _set_csrf_cookie,
-                        _validate_webhook_url, ensure_tls_cert)
-from .websocket import (_WSConnection, _validate_ws_token,
-                         _ws_user_still_valid, ws_manager)
+                       _generate_csrf_token, _require_csrf, _set_csrf_cookie,
+                       _validate_webhook_url, ensure_tls_cert)
+from .websocket import (_validate_ws_token, _ws_user_still_valid,
+                        _WSConnection, ws_manager)
 
 logger = config.logger.getChild("main")
 
@@ -135,8 +140,7 @@ async def admin_list_users(
     """List every user account (admin only)."""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Superuser required.")
-    import sqlalchemy as sa
-    result = await session.execute(sa.select(User).order_by(User.is_approved, User.email))
+    result = await session.execute(select(User).order_by(User.is_approved, User.email))
     users  = result.scalars().all()
     return [{"id": str(u.id), "email": u.email, "display_name": u.display_name,
              "is_superuser": u.is_superuser, "is_approved": u.is_approved,
@@ -159,9 +163,8 @@ async def admin_create_user(
     if body.role not in (UserRole.ADMIN, UserRole.VIEWER):
         raise HTTPException(status_code=400, detail="Role must be 'admin' or 'viewer'.")
 
-    import sqlalchemy as sa
     existing = await session.execute(
-        sa.select(User).where(User.email == body.email.strip().lower())
+        select(User).where(User.email == body.email.strip().lower())
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email already registered.")
@@ -212,8 +215,7 @@ async def change_user_role(
         uid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID.")
-    import sqlalchemy as sa
-    result = await session.execute(sa.select(User).where(User.id == uid))
+    result = await session.execute(select(User).where(User.id == uid))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
@@ -240,8 +242,7 @@ async def reactivate_user(
         uid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID.")
-    import sqlalchemy as sa
-    result = await session.execute(sa.select(User).where(User.id == uid))
+    result = await session.execute(select(User).where(User.id == uid))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
@@ -509,7 +510,6 @@ app.include_router(
 )
 # ── User management endpoints — registered BEFORE the generic /{user_id} router
 # so /api/users/pending is matched first and not captured as a user_id.
-import sqlalchemy as _sa
 
 @app.get("/api/users/pending", tags=["users"])
 async def list_pending_users(
@@ -520,7 +520,7 @@ async def list_pending_users(
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Superuser required.")
     result = await session.execute(
-        _sa.select(User).where(User.is_approved == False, User.is_superuser == False)
+        select(User).where(User.is_approved == False, User.is_superuser == False)
     )
     users = result.scalars().all()
     return [
@@ -543,7 +543,7 @@ async def approve_user(
         uid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID format.")
-    result = await session.execute(_sa.select(User).where(User.id == uid))
+    result = await session.execute(select(User).where(User.id == uid))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
@@ -571,7 +571,7 @@ async def revoke_user(
         raise HTTPException(status_code=400, detail="Invalid user ID format.")
     if uid == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot revoke your own account.")
-    result = await session.execute(_sa.select(User).where(User.id == uid))
+    result = await session.execute(select(User).where(User.id == uid))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
@@ -618,7 +618,7 @@ async def get_user(
         uid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID format.")
-    result = await session.execute(_sa.select(User).where(User.id == uid))
+    result = await session.execute(select(User).where(User.id == uid))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
@@ -1170,7 +1170,6 @@ async def test_webhook(current_user: User = Depends(current_active_user),
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── Simulation / Demo mode ────────────────────────────────────────────────────
-import random, math
 
 SCENARIOS = {
     "high_cpu": {

@@ -49,7 +49,8 @@ def _validate_ws_token(token: str) -> dict:
     - sub claim required and validated against DB
     - User approval + active status verified at connection time
     """
-    from jose import jwt as _jwt, JWTError
+    from jose import JWTError
+    from jose import jwt as _jwt
 
     # ── 1. Inspect header BEFORE decoding ────────────────────────────────────
     try:

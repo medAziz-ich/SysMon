@@ -22,10 +22,13 @@ from enum import StrEnum
 from typing import AsyncGenerator
 
 from fastapi import Depends
-from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
+from fastapi_users.db import (SQLAlchemyBaseUserTableUUID,
+                              SQLAlchemyUserDatabase)
 from sqlalchemy import Boolean, Column, String
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
 from sqlalchemy.orm import DeclarativeBase
+
 
 class EmailProvider(StrEnum):
     """The two notification-email backends the settings API accepts."""
@@ -33,6 +36,7 @@ class EmailProvider(StrEnum):
     RESEND = "resend"
 
 from . import config
+
 
 # SQLAlchemy async engine — uses aiosqlite driver on top of the same DB file
 def _async_db_url() -> str:

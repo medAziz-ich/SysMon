@@ -11,6 +11,7 @@ import uuid
 from fastapi_users import schemas as fu_schemas
 from pydantic import BaseModel, Field, field_validator
 
+
 class UserRead(fu_schemas.BaseUser[uuid.UUID]):
     """Public user representation returned by /api/auth/* and /api/me."""
     display_name: str

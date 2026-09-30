@@ -6,6 +6,20 @@ A lightweight system monitoring solution consisting of:
 
 ---
 
+## Screenshots
+
+| Login | Dashboard |
+|---|---|
+| ![Login screen](docs/screenshots/login.png) | ![Host dashboard](docs/screenshots/dashboard.png) |
+
+**Host dashboard** — live CPU/RAM/network/disk charts, per-host thresholds, alert history, and tailed log events.
+
+![Admin user management](docs/screenshots/admin-users.png)
+
+**Admin panel** — approve/revoke accounts and manage roles.
+
+---
+
 ## Project Structure
 
 ```
